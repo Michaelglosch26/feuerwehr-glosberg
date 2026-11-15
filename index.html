@@ -375,8 +375,8 @@ function bspWeg(){if(S.bspWeg)return;if(S.sample){const B=x=>/^Beispiel/.test(x|
 const STORE='ffw_glosberg_store', SESSK='ffw_glosberg_sitzung', ENTWURF='ffw_glosberg_entwurf';
 const ROLLEN={kdt:'Kommandant/-in',gw:'Gerätewart/-in',mann:'Mannschaft',jugend:'Jugendfeuerwehr',tablet:'Fahrzeug-Tablet'};
 const ALLKEYS=['kdt','tech','mann','jf','jfm','verein','kf'];
-const RKEYS={kdt:ALLKEYS.filter(k=>k!=='kf'),gw:['tech','mann'],mann:['mann'],tablet:['tech','mann'],jugend:['jfm']};
-const RAREAS={kdt:['ich','kdt','tech','jf','verein','tablet'],gw:['ich','tech'],mann:['ich'],tablet:['tablet'],jugend:['jugend']};
+const RKEYS={kdt:ALLKEYS,gw:['tech','mann'],mann:['mann'],tablet:['tech','mann'],jugend:['jfm']};
+const RAREAS={kdt:['ich','kdt','tech','jf','kf','verein','tablet'],gw:['ich','tech'],mann:['ich'],tablet:['tablet'],jugend:['jugend']};
 /* Zusätzliche Bereiche ergeben sich aus den Funktionen einer Person */
 const XKEYS={jf:['jf','jfm'],verein:['verein'],kf:['kf']};
 const istKF=m=>fns(m).some(f=>/kinderfeuerwehr/i.test(f));
@@ -908,7 +908,7 @@ function dayDlg(s){const ft=feiertage(+s.slice(0,4))[s],f=ferien(s),l=S.events.f
   ${l.length?`<ul class="list">${l.map(evRow).join('')}</ul>`:'<p class="muted" style="margin:0">Keine Einträge an diesem Tag.</p>'}
   <div class="actions"><button class="btn" data-act="close">Schließen</button><span class="sp"></span><button class="btn" data-act="new" data-typ="verein" data-id="${s}">Anderer Termin</button><button class="btn" data-act="new" data-typ="einsatz" data-id="${s}">Einsatz</button><button class="btn pri" data-act="new" data-typ="uebung" data-id="${s}">Übung planen</button></div>`)}
 function formDlg(){const e=draft,intern=INTERN.includes(e.typ),ein=e.typ==='einsatz',isNew=!S.events.some(x=>x.id===e.id);
-  const jug=e.typ==='jugend',vst=e.typ==='vorstand',kin=e.typ==='kinder',typen=area==='jf'?['jugend']:area==='kf'?['kinder']:area==='verein'?VTYP:Object.keys(TYP).filter(k=>k!=='kinder'),vf=VTYP.includes(e.typ)||kin;
+  const jug=e.typ==='jugend',vst=e.typ==='vorstand',kin=e.typ==='kinder',typen=area==='jf'?['jugend']:area==='kf'?['kinder']:area==='verein'?VTYP:Object.keys(TYP).filter(k=>k!=='kinder'||e.typ==='kinder'),vf=VTYP.includes(e.typ)||kin;
   const people=jug?JW().members.filter(m=>(m.aktiv!==false&&fuerJ(e,m))||e.anw[m.id]):S.members.filter(m=>(m.aktiv&&fuerA(e,m))||e.anw[m.id]);
   openDlg(`<h2>${isNew?'Neu: ':''}${TYP[e.typ]}</h2>
   <div class="f">
@@ -927,7 +927,7 @@ function formDlg(){const e=draft,intern=INTERN.includes(e.typ),ein=e.typ==='eins
     ${e.eigen?`<div class="chipbtns">${EIGEN.map(o=>`<button class="btn sm${e.ort===o?' pri':''}" data-act="ortpick" data-id="${o}">${o}</button>`).join('')}</div>`:''}</div>`:`<label>Ort<input id="f_ort" value="${esc(e.ort)}"></label>`}
    <label>${ein?'Einsatzleiter':vf?'Verantwortlich':'Übungsleiter'}<input id="f_leiter" value="${esc(e.leiter)}" list="f_names"><datalist id="f_names">${(jug?S.members.filter(istJW):kin?S.members.filter(istKF):vf?S.members.filter(istVorst):aktiv()).map(m=>`<option value="${esc(m.name)}">`).join('')}</datalist></label>
    <label class="wide">${ein?'Einsatznotizen':'Ablauf und Notizen'}<textarea id="f_notiz" placeholder="${ein?'Lage, Maßnahmen, eingesetzte Geräte. Bitte keine Namen von Betroffenen.':''}">${esc(e.notiz)}</textarea></label>
-   ${kin?'<p class="wide muted small" style="margin:0">Termine der Kinderfeuerwehr sehen nur die Leitung und die Betreuer/-innen der Kinderfeuerwehr.</p>':jug?'<p class="wide muted small" style="margin:0">Termine der Jugendfeuerwehr sehen die Jugendlichen, die Jugendwart/-innen und die Kommandanten.</p>':vst?'<p class="wide muted small" style="margin:0">Termine der Vorstandschaft sehen nur die Mitglieder der Vorstandschaft.</p>':e.typ==='fuehrung'?'<p class="wide muted small" style="margin:0">Führungstermine sehen nur die Kommandanten. Sie erscheinen weder im Mannschaftsbereich noch im Ausdruck.</p>':ein?'':`<label class="chk wide"><input type="checkbox" id="f_frei"${e.frei?' checked':''}>${vf?'Für alle Aktiven sichtbar (Kalender der Mannschaft und Tablet)':'Für die Mannschaft sichtbar'}</label>`}
+   ${kin?'<p class="wide muted small" style="margin:0">Termine der Kinderfeuerwehr sehen nur die Leitung und die Betreuer/-innen der Kinderfeuerwehr sowie die Kommandant/-innen.</p>':jug?'<p class="wide muted small" style="margin:0">Termine der Jugendfeuerwehr sehen die Jugendlichen, die Jugendwart/-innen und die Kommandanten.</p>':vst?'<p class="wide muted small" style="margin:0">Termine der Vorstandschaft sehen nur die Mitglieder der Vorstandschaft.</p>':e.typ==='fuehrung'?'<p class="wide muted small" style="margin:0">Führungstermine sehen nur die Kommandanten. Sie erscheinen weder im Mannschaftsbereich noch im Ausdruck.</p>':ein?'':`<label class="chk wide"><input type="checkbox" id="f_frei"${e.frei?' checked':''}>${vf?'Für alle Aktiven sichtbar (Kalender der Mannschaft und Tablet)':'Für die Mannschaft sichtbar'}</label>`}
   </div>
   ${jug||vst||kin||role()!=='kdt'?'':`<div><h3>Dokumente</h3><p class="muted small" style="margin:4px 0 6px">${intern?'Dokumente zu diesem Eintrag sehen nur die Kommandanten.':'Haken setzen und festlegen, ab wann die Mannschaft das Dokument sieht.'}</p>
    ${S.docs.map(d=>`<div class="anw d_row"><label><input type="checkbox" class="f_doc" value="${d.id}"${e.docs.includes(d.id)?' checked':''}><span>${d.ordner?`<span class="muted small">${esc(d.ordner.replace(/\//g,' / '))} / </span>`:''}${esc(d.name)}</span></label>${intern?'':`<select aria-label="Sichtbarkeit ${esc(d.name)}">${Object.keys(VIS).map(k=>`<option value="${k}"${(e.docvis[d.id]||'nach')===k?' selected':''}>${VIS[k]}</option>`).join('')}</select>`}</div>`).join('')}
@@ -1423,14 +1423,14 @@ function vKStart_(){const t=today(),kom=evs('kinder').filter(e=>evBis(e)>=t),l=[
   <div class="head"><h2>Nächste Termine</h2><button class="btn" data-act="tab" data-id="k_term">Alle anzeigen</button><button class="btn pri" data-act="new" data-typ="kinder">Termin planen</button></div>
   ${evList(kom.slice(0,5),'Keine kommenden Termine eingetragen.')}
   ${geb.length?`<div class="head"><h2>Geburtstage im ${MON[mon]}</h2></div><ul class="list panel">${geb.sort((a,b)=>a.geb.slice(5).localeCompare(b.geb.slice(5))).map(k=>`<li><div class="row"><span class="dt"><b>${k.geb.slice(8)}</b><i>${MON[mon].slice(0,3)}</i></span><span class="txt"><strong>${esc(k.name)}</strong><span class="muted small">wird ${alter(k.geb)+(toD(k.geb).getDate()>new Date().getDate()?1:0)} Jahre</span></span></div></li>`).join('')}</ul>`:''}
-  <p class="muted small" style="margin:0">Diesen Bereich sehen nur die Leitung und die Betreuer/-innen der Kinderfeuerwehr.</p>`}
+  <p class="muted small" style="margin:0">Diesen Bereich sehen nur die Leitung und die Betreuer/-innen der Kinderfeuerwehr sowie die Kommandant/-innen.</p>`}
 function vKTerm(){
   return `<div class="head"><h2>Termine</h2>${yearNav()}<button class="btn" data-act="kics">Kalenderdatei</button><button class="btn pri" data-act="new" data-typ="kinder">Termin planen</button></div>
   ${evList(evs('kinder',year),`Für ${year} sind noch keine Termine geplant.`)}`}
 function vKKinder(){const l=[...KF().members].sort(nachSort);
   return `<div class="head"><h2>Kinder <span class="muted" style="font-size:1rem;font-weight:500">${l.length}</span></h2><button class="btn pri" data-act="knew">Kind hinzufügen</button></div>
   ${l.length?`<ul class="list panel">${l.map(k=>`<li><button class="row" data-act="kedit" data-id="${k.id}"><span class="txt"><strong>${esc(k.name)}</strong><span class="muted small">${k.geb?'geb. '+dmy(k.geb)+' ('+alter(k.geb)+' Jahre)':'ohne Geburtsdatum'}</span></span></button></li>`).join('')}</ul>`:'<p class="panel muted">Noch keine Kinder angelegt.</p>'}
-  <p class="muted small">Gespeichert werden nur Name und Geburtsdatum, verschlüsselt und nur für Leitung und Betreuer/-innen lesbar.</p>`}
+  <p class="muted small">Gespeichert werden nur Name und Geburtsdatum, verschlüsselt und nur für Leitung, Betreuer/-innen und Kommandant/-innen lesbar.</p>`}
 function kDlg(){const k=kdraft,isNew=!KF().members.some(x=>x.id===k.id);
   openDlg(`<h2>${isNew?'Kind hinzufügen':'Kind'}</h2>
   <div class="f"><label class="wide">Vor- und Nachname<input id="k_name" value="${esc(k.name)}" autocomplete="off"></label><label>Geburtsdatum<input type="date" id="k_geb" value="${esc(k.geb||'')}"></label></div>
@@ -1438,7 +1438,7 @@ function kDlg(){const k=kdraft,isNew=!KF().members.some(x=>x.id===k.id);
   <div class="actions">${isNew?'':`<button class="btn danger" data-act="kdel" data-id="${k.id}">Löschen</button>`}<span class="sp"></span><button class="btn" data-act="close">Abbrechen</button><button class="btn pri" data-act="ksave">Speichern</button></div>`)}
 function vKDocs(){const l=[...KF().docs].sort((a,b)=>(b.datum||'').localeCompare(a.datum||''));
   return `<div class="head"><h2>Dokumente</h2><label class="btn pri" for="k_up">Datei hinzufügen</label><input type="file" id="k_up" multiple hidden></div>
-  <p class="muted small" style="margin:0">Nur für die Leitung und die Betreuer/-innen der Kinderfeuerwehr.</p>
+  <p class="muted small" style="margin:0">Nur für die Leitung und die Betreuer/-innen der Kinderfeuerwehr sowie die Kommandant/-innen.</p>
   ${l.length?`<ul class="list panel">${l.map(d=>`<li class="drow"><div class="txt"><strong>${esc(d.name)}</strong><div class="muted small">${kb(d.size)}${d.datum?' · '+dmy(d.datum):''}</div></div><div class="dact"><button class="btn sm" data-act="dopen" data-id="${d.id}">Öffnen</button><button class="btn sm danger" data-act="kddel" data-id="${d.id}">Löschen</button></div></li>`).join('')}</ul>`:'<p class="panel muted">Noch keine Dokumente.</p>'}`}
 function kfAct(a,id,b){
   if(a==='knew'){kdraft={id:'k'+uid(),name:'',nach:'',geb:''};kDlg()}
