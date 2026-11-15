@@ -317,16 +317,16 @@ const FUNKT=['Kommandant','Kommandantin','Stellvertretender Kommandant','Stellve
 const AUSB=['MTA','Funkausbildung','Atemschutz','Atemschutz – VR-System','Maschinisten für Löschfahrzeuge','Aufbaulehrgang Maschinisten','Ausbildung THL','Motorsägen-Grundlehrgang','Aufbaulehrgang Motorsägen','Gefahrgut / CSA','Vegetationsbrandbekämpfung','Gerätewart','Fahrsicherheitstraining','Einsatzfahrtensimulator'];
 /* Lehrgänge an den Staatlichen Feuerwehrschulen */
 const SFS=['Gruppenführer','Leiter einer Feuerwehr'];
-const FN=['Kommandant/-in','Stv. Kommandant/-in','Gruppenführer/-in','Maschinist/-in','Gerätewart/-in','Jugendwart/-in'];
-const FNV=['Vorsitzende/-r','Stv. Vorsitzende/-r','Schriftführer/-in','Leiter/-in der Kinderfeuerwehr','Betreuer/-in der Kinderfeuerwehr','Beisitzer/-in','Aktivensprecher/-in'];
+const FN=['Kommandant/-in','Stv. Kommandant/-in','Verbandsführer/-in','Zugführer/-in','Gruppenführer/-in','Maschinist/-in','Gerätewart/-in','Jugendwart/-in','Atemschutzgeräteträger/-in'];
+const FNV=['Vorsitzende/-r','Stv. Vorsitzende/-r','Schriftführer/-in','Leiter/-in der Kinderfeuerwehr','Betreuer/-in der Kinderfeuerwehr','Beisitzer/-in','Aktivensprecher/-in','Kassier/-in'];
 /* Frühere Schreibweisen der Funktionen auf die neuen umstellen */
-const FN_ALT={'Kommandant':0,'Kommandantin':0,'Stv. Kommandant':1,'Stv. Kommandantin':1,'Stellvertretender Kommandant':1,'Stellvertretende Kommandantin':1,'Gruppenführer':2,'Gruppenführerin':2,'Maschinist':3,'Maschinistin':3,'Gerätewart':4,'Gerätewartin':4,'Jugendwart':5,'Jugendwartin':5};
-const FNV_ALT={'Vorsitzender':0,'Vorsitzende':0,'Stv. Vorsitzender':1,'Stv. Vorsitzende':1,'Schriftführer':2,'Schriftführerin':2,'Leiter Kinderfeuerwehr':3,'Leiterin Kinderfeuerwehr':3,'Betreuer Kinderfeuerwehr':4,'Betreuerin Kinderfeuerwehr':4,'Beisitzer':5,'Beisitzerin':5,'Aktivensprecher':6,'Aktivensprecherin':6};
+const FN_ALT={'Kommandant':0,'Kommandantin':0,'Stv. Kommandant':1,'Stv. Kommandantin':1,'Stellvertretender Kommandant':1,'Stellvertretende Kommandantin':1,'Gruppenführer':4,'Gruppenführerin':4,'Maschinist':5,'Maschinistin':5,'Gerätewart':6,'Gerätewartin':6,'Jugendwart':7,'Jugendwartin':7,'Atemschutzgeräteträger':8,'Atemschutzgeräteträgerin':8,'Atemschutz':8,'AGT':8,'Verbandsführer':2,'Verbandsführerin':2,'Zugführer':3,'Zugführerin':3};
+const FNV_ALT={'Vorsitzender':0,'Vorsitzende':0,'Stv. Vorsitzender':1,'Stv. Vorsitzende':1,'Schriftführer':2,'Schriftführerin':2,'Leiter Kinderfeuerwehr':3,'Leiterin Kinderfeuerwehr':3,'Betreuer Kinderfeuerwehr':4,'Betreuerin Kinderfeuerwehr':4,'Beisitzer':5,'Beisitzerin':5,'Aktivensprecher':6,'Aktivensprecherin':6,'Kassier':7,'Kassierin':7,'Kassierer':7,'Kassiererin':7};
 const fnNeu=f=>f in FN_ALT?FN[FN_ALT[f]]:f in FNV_ALT?FNV[FNV_ALT[f]]:f;
 /* Leitung und Betreuerinnen der Kinderfeuerwehr (über Prüfwerte der Namen, damit keine Namen im Programm stehen) */
 const KF0={'b2EOzse/Xgidfr40pHn7pckQ6Yey2FQV/6If2uK4dhc=':3,'KsXsSrXoaktDU8n8OPdH9xE31ZVOrQ+iqoNRldkwvOU=':4,'fasmVJ82egW+KJhS71EvP6BTVaeE6FsnunJRy/tYfAY=':4};
 const fns=m=>(m.funktion||'').split(',').map(x=>x.trim()).filter(Boolean);
-const fnBadges=m=>fns(m).map(f=>`<span class="fn ${/kommandant/i.test(f)?'kdt':/gruppenf/i.test(f)?'gf':/maschinist/i.test(f)?'ma':''}">${esc(f)}</span>`).join('');
+const fnBadges=m=>fns(m).map(f=>`<span class="fn ${/kommandant/i.test(f)?'kdt':/gruppenf|zugf|verbandsf/i.test(f)?'gf':/maschinist/i.test(f)?'ma':''}">${esc(f)}</span>`).join('');
 let mdraft=null;
 let S=null, unlocked=false, tab='start', year=new Date().getFullYear(), draft=null;
 
@@ -392,7 +392,7 @@ const RAREAS={kdt:['ich','kdt','tech','jf','kf','verein','tablet'],gw:['ich','te
 const XKEYS={jf:['jf','jfm'],verein:['verein'],kf:['kf']};
 const istKF=m=>fns(m).some(f=>/kinderfeuerwehr/i.test(f));
 const istJW=m=>fns(m).some(f=>/jugendwart/i.test(f));
-const istVorst=m=>fns(m).some(f=>/kommandant|vorsitz|vorstand|schriftf|jugendwart|leiter.*kinderfeuerwehr|beisitz|aktiven.?sprecher/i.test(f)||/^gerätewart/i.test(f));
+const istVorst=m=>fns(m).some(f=>/kommandant|vorsitz|vorstand|schriftf|jugendwart|leiter.*kinderfeuerwehr|beisitz|aktiven.?sprecher|kassier/i.test(f)||/^gerätewart/i.test(f));
 const xFlags=m=>[...(istJW(m)?['jf']:[]),...(istVorst(m)?['verein']:[]),...(istKF(m)?['kf']:[])];
 /* Kommandanten haben alle Schlüssel außer der Kinderfeuerwehr; die nur, wenn sie selbst dort mitwirken */
 const kdtKeys=x=>{const o={};[...RKEYS.kdt,...(x||[]).flatMap(f=>XKEYS[f])].forEach(k=>{if(S.sec.keys[k])o[k]=S.sec.keys[k]});return o};
@@ -810,7 +810,7 @@ function vStart(){const y=new Date().getFullYear(),t=today();
   const act=aktiv();let sum=0;
   const rows=act.map(m=>{const um=ueb.filter(e=>fuerA(e,m)),a=um.filter(e=>e.anw[m.id]==='a').length,p=um.length?Math.round(a/um.length*100):0;sum+=p;return {m,um,a,p}})
     .sort((x,y)=>y.p-x.p||y.a-x.a||nachSort(x.m,y.m)).map(({m,um,a,p})=>{
-    return `<tr><td>${esc(m.name)}<div class="muted small">${esc([m.rang,m.funktion].filter(Boolean).join(' · '))}</div></td><td class="num">${a} von ${um.length}</td><td class="num">${p} %</td><td><div class="bar"><i style="width:${p}%"></i></div></td></tr>`}).join('');
+    return `<tr><td>${esc(m.name)}</td><td class="num">${a} von ${um.length}</td><td class="num">${p} %</td><td><div class="bar"><i style="width:${p}%"></i></div></td></tr>`}).join('');
   return `${S.sample?'<div class="note"><span><strong>Beispieldaten.</strong> Termine, Einsätze und Aufgaben sind erfunden, damit du die App ausprobieren kannst. Die Mannschaft ist echt und bleibt beim Entfernen erhalten.</span><button class="btn sm" data-act="clear">Beispieldaten entfernen</button></div>':''}
   <div class="stats"><div class="panel stat"><b>${evs('uebung',y).length}</b>Übungen ${y}</div><div class="panel stat"><b>${evs('einsatz',y).length}</b>Einsätze ${y}</div><div class="panel stat"><b>${act.length?Math.round(sum/act.length):0} %</b>Übungsbeteiligung</div><div class="panel stat"><b>${act.length}</b>Aktive</div><button class="panel stat statbtn${auOffen('kdt').length?' alarm':''}" data-act="tab" data-id="aufg"><b>${auOffen('kdt').length}</b>offene Aufgaben</button></div>
   <div class="head"><h2>Nächste Termine</h2><button class="btn pri" data-act="new" data-typ="uebung">Übung planen</button><button class="btn" data-act="new" data-typ="einsatz">Einsatz notieren</button></div>
@@ -1388,7 +1388,7 @@ const ICH='ffw_glosberg_ich';
 const ich=()=>SESS&&S.members.find(m=>m.id===SESS.mid);
 const istKdt=m=>fns(m).some(f=>/kommandant/i.test(f));
 /* Übungen nur für bestimmte Gruppen der Aktiven */
-const ZG={'Maschinist/-innen':m=>fns(m).some(f=>/maschinist/i.test(f)),'Gruppenführer/-innen':m=>fns(m).some(f=>/gruppenf|kommandant/i.test(f)),'Atemschutzgeräteträger/-innen':m=>(m.ausb||[]).some(a=>/^atemschutz/i.test(a.n))};
+const ZG={'Maschinist/-innen':m=>fns(m).some(f=>/maschinist/i.test(f)),'Gruppenführer/-innen':m=>fns(m).some(f=>/gruppenf|zugf|verbandsf|kommandant/i.test(f)),'Atemschutzgeräteträger/-innen':m=>fns(m).some(f=>/atemschutzgeräteträger/i.test(f))||(m.ausb||[]).some(a=>/^atemschutz/i.test(a.n))};
 const ZG_ALT={'Maschinisten':'Maschinist/-innen','Gruppenführer':'Gruppenführer/-innen','Führungskräfte':'Gruppenführer/-innen','Atemschutzgeräteträger':'Atemschutzgeräteträger/-innen'};
 const zgVon=e=>{const z=(e.zgr||[]).length?e.zgr:[e.gruppe];return [...new Set(z.map(g=>ZG_ALT[g]||g).filter(g=>ZG[g]))]};
 const fuerA=(e,m)=>{const z=zgVon(e);return !z.length||z.some(g=>ZG[g]&&ZG[g](m))};
