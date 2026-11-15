@@ -808,7 +808,8 @@ function vStart(){const y=new Date().getFullYear(),t=today();
   const next=evs().filter(e=>evBis(e)>=t).slice(0,5);
   const ueb=evs('uebung',y).filter(e=>Object.keys(e.anw||{}).length);
   const act=aktiv();let sum=0;
-  const rows=act.map(m=>{const um=ueb.filter(e=>fuerA(e,m)),a=um.filter(e=>e.anw[m.id]==='a').length,p=um.length?Math.round(a/um.length*100):0;sum+=p;
+  const rows=act.map(m=>{const um=ueb.filter(e=>fuerA(e,m)),a=um.filter(e=>e.anw[m.id]==='a').length,p=um.length?Math.round(a/um.length*100):0;sum+=p;return {m,um,a,p}})
+    .sort((x,y)=>y.p-x.p||y.a-x.a||nachSort(x.m,y.m)).map(({m,um,a,p})=>{
     return `<tr><td>${esc(m.name)}<div class="muted small">${esc([m.rang,m.funktion].filter(Boolean).join(' · '))}</div></td><td class="num">${a} von ${um.length}</td><td class="num">${p} %</td><td><div class="bar"><i style="width:${p}%"></i></div></td></tr>`}).join('');
   return `${S.sample?'<div class="note"><span><strong>Beispieldaten.</strong> Termine, Einsätze und Aufgaben sind erfunden, damit du die App ausprobieren kannst. Die Mannschaft ist echt und bleibt beim Entfernen erhalten.</span><button class="btn sm" data-act="clear">Beispieldaten entfernen</button></div>':''}
   <div class="stats"><div class="panel stat"><b>${evs('uebung',y).length}</b>Übungen ${y}</div><div class="panel stat"><b>${evs('einsatz',y).length}</b>Einsätze ${y}</div><div class="panel stat"><b>${act.length?Math.round(sum/act.length):0} %</b>Übungsbeteiligung</div><div class="panel stat"><b>${act.length}</b>Aktive</div><button class="panel stat statbtn${auOffen('kdt').length?' alarm':''}" data-act="tab" data-id="aufg"><b>${auOffen('kdt').length}</b>offene Aufgaben</button></div>
@@ -1529,7 +1530,7 @@ function jQuote(m,y){const ue=evs('jugend',y).filter(e=>e.datum<=today()&&Object
 const yearNav=()=>`<div class="yearnav"><button class="btn" data-act="year" data-id="-1" aria-label="Vorjahr">‹</button><b>${year}</b><button class="btn" data-act="year" data-id="1" aria-label="Folgejahr">›</button></div>`;
 function vJStart(){const y=new Date().getFullYear(),t=today(),act=jAktiv(),next=evs('jugend').filter(e=>evBis(e)>=t).slice(0,5);
   const ue=evs('jugend',y).filter(e=>e.datum<=t&&Object.keys(e.anw||{}).length),anz=e=>Object.values(e.anw).filter(v=>v==='a').length,avg=ue.length?ue.reduce((s,e)=>s+anz(e),0)/ue.length:0;
-  const rows=act.map(m=>{const q=jQuote(m,y);return `<tr><td>${esc(m.name)}<div class="muted small">${m.geb?alter(m.geb)+' Jahre':''}</div></td><td class="num">${q.a} von ${q.ue.length}</td><td class="num">${q.p} %</td><td><div class="bar"><i style="width:${q.p}%"></i></div></td></tr>`}).join('');
+  const rows=act.map(m=>({m,q:jQuote(m,y)})).sort((x,z)=>z.q.p-x.q.p||z.q.a-x.q.a||nachSort(x.m,z.m)).map(({m,q})=>{return `<tr><td>${esc(m.name)}<div class="muted small">${m.geb?alter(m.geb)+' Jahre':''}</div></td><td class="num">${q.a} von ${q.ue.length}</td><td class="num">${q.p} %</td><td><div class="bar"><i style="width:${q.p}%"></i></div></td></tr>`}).join('');
   return `<div class="stats"><button class="panel stat statbtn" data-act="tab" data-id="j_mitgl"><b>${act.length}</b>Jugendliche</button><div class="panel stat"><b>${evs('jugend',y).length}</b>Übungen ${y}</div>
    <div class="panel stat"><b>${ue.length?avg.toFixed(1).replace('.',','):'–'}</b>Ø Teilnehmer je Übung</div><button class="panel stat statbtn" data-act="tab" data-id="j_docs"><b>${JW().docs.length}</b>Dokumente</button></div>
   <div class="head"><h2>Nächste Termine</h2><button class="btn pri" data-act="new" data-typ="jugend">Übung planen</button></div>
@@ -1592,7 +1593,7 @@ let kdraft=null;
 function kQuote(k,y){const st=evs('kinder',y).filter(e=>e.datum<=today()&&Object.keys(e.anw||{}).length),a=st.filter(e=>e.anw[k.id]==='a').length;return {st,a,p:st.length?Math.round(a/st.length*100):0}}
 function kBeteiligung(){const y=new Date().getFullYear(),l=[...KF().members].sort(nachSort),st=evs('kinder',y).filter(e=>e.datum<=today()&&Object.keys(e.anw||{}).length);
   const anz=e=>Object.values(e.anw).filter(v=>v==='a').length,avg=st.length?st.reduce((s,e)=>s+anz(e),0)/st.length:0;
-  const rows=l.map(k=>{const q=kQuote(k,y);return `<tr><td>${esc(k.name)}<div class="muted small">${k.geb?alter(k.geb)+' Jahre':''}</div></td><td class="num">${q.a} von ${q.st.length}</td><td class="num">${q.p} %</td><td><div class="bar"><i style="width:${q.p}%"></i></div></td></tr>`}).join('');
+  const rows=l.map(k=>({k,q:kQuote(k,y)})).sort((x,z)=>z.q.p-x.q.p||z.q.a-x.q.a||nachSort(x.k,z.k)).map(({k,q})=>{return `<tr><td>${esc(k.name)}<div class="muted small">${k.geb?alter(k.geb)+' Jahre':''}</div></td><td class="num">${q.a} von ${q.st.length}</td><td class="num">${q.p} %</td><td><div class="bar"><i style="width:${q.p}%"></i></div></td></tr>`}).join('');
   return `<div class="head"><h2>Beteiligung ${y}</h2></div>
   ${st.length&&rows?`<p class="muted small" style="margin:0">${st.length} Termin${st.length>1?'e':''} mit erfasster Teilnahme, im Schnitt ${avg.toFixed(1).replace('.',',')} Kinder je Termin.</p><div class="panel scroll"><table><thead><tr><th>Name</th><th>Termine</th><th>Quote</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:'<p class="panel muted">Noch keine Teilnahme erfasst. Öffne einen vergangenen Termin und kreuze an, wer da war.</p>'}`}
 function vKStart(){return kfKopf()+vKStart_()}
