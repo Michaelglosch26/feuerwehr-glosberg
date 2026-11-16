@@ -57,6 +57,7 @@ h2{font-size:1.3rem} h3{font-size:1.02rem}
 .pic{position:relative;width:96px;height:96px;border-radius:10px;overflow:hidden;background:var(--raise);border:1px solid var(--line)}
 .pic img{width:100%;height:100%;object-fit:cover;cursor:zoom-in;display:block}
 .picx{position:absolute;top:4px;right:4px;width:26px;height:26px;border-radius:50%;border:0;background:var(--bg);color:var(--fg);font-size:1.1rem;line-height:1}
+.fzlinks{flex:none;display:flex;flex-direction:column;align-items:center;gap:4px;width:84px}.fzbild{width:84px;height:62px;border-radius:10px;object-fit:cover;background:var(--raise)}.fzleer{display:flex;align-items:center;justify-content:center;font-size:1.8rem}.tuevk{font-size:.72rem;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}.tuevk.termin{color:var(--warn)}.tuevk.bad{color:var(--bad)}
 .thumb{width:56px;height:56px;border-radius:10px;object-fit:cover;flex:none;background:var(--raise)}
 img[data-img]:not([src]){visibility:hidden}
 .fullimg{position:fixed;inset:0;background:var(--bg);display:grid;place-items:center;z-index:30;cursor:zoom-out}
@@ -447,7 +448,7 @@ const bildFk=()=>fkFor(Object.keys(S.fk||{}).filter(id=>id.startsWith('img')));
 const VTYP=['vorstand','verein','fest'], EIGENTYP=['jugend','kinder',...VTYP]; /* liegen nicht im Kommandantenteil */
 const vmEvents=()=>S.events.filter(e=>VTYP.includes(e.typ)&&!INTERN.includes(e.typ)&&e.frei).map(e=>Object.assign({},e,{anw:{},anwNotiz:{},notiz:''}));
 function partKdt(full){full.events=full.events.filter(e=>!EIGENTYP.includes(e.typ));full.aufgaben=(full.aufgaben||[]).filter(a=>a.area!=='verein');delete full.jugend;delete full.kinder;return full}
-function partTech(){return {geraete:S.geraete,maengel:S.maengel,fahrzeuge:S.fahrzeuge,lager:S.lager,aufgaben:(S.aufgaben||[]).filter(a=>a.area==='tech'),members:S.members.map(minMember),dash:calcDash(),fk:bildFk()}}
+function partTech(){return {geraete:S.geraete,maengel:S.maengel,fahrzeuge:S.fahrzeuge,rcinfo:S.rcinfo||{},lager:S.lager,aufgaben:(S.aufgaben||[]).filter(a=>a.area==='tech'),members:S.members.map(minMember),dash:calcDash(),fk:bildFk()}}
 function partMann(){const docs=S.docs.filter(d=>d.frei||S.events.some(e=>(e.docs||[]).includes(d.id)&&!INTERN.includes(e.typ)&&e.frei&&((e.docvis||{})[d.id]||'nach')!=='kdt'));
   return {members:S.members.map(minMember),fk:fkFor(docs.map(d=>d.id)),docs,
   events:S.events.filter(e=>!INTERN.includes(e.typ)&&e.frei&&!VTYP.includes(e.typ)).map(e=>Object.assign({},e,{anw:{},anwNotiz:{},notiz:''}))}}
@@ -472,7 +473,7 @@ async function doSave(snap){const st=getStore(),K=SESS.keys,r=role();st.pending=
   if(r==='kdt'){await put('kdt',K.kdt,partKdt(JSON.parse(snap)));await put('tech',K.tech,partTech());await put('mann',K.mann,partMann());
     for(const m of S.members){const pk=(S.sec.pkeys||{})[m.id];if(pk)await put('p_'+m.id,pk,partPers(m))}}
   else if(r==='gw'||r==='tablet'){const old=st.blobs.tech?await dec(K.tech,st.blobs.tech):{};
-    await put('tech',K.tech,Object.assign(old,{geraete:S.geraete,maengel:S.maengel,fahrzeuge:S.fahrzeuge,lager:S.lager,aufgaben:(S.aufgaben||[]).filter(a=>a.area==='tech'),fk:Object.assign({},old.fk,bildFk())}))}
+    await put('tech',K.tech,Object.assign(old,{geraete:S.geraete,maengel:S.maengel,fahrzeuge:S.fahrzeuge,rcinfo:S.rcinfo||{},lager:S.lager,aufgaben:(S.aufgaben||[]).filter(a=>a.area==='tech'),fk:Object.assign({},old.fk,bildFk())}))}
   if(K.jf&&K.jfm&&S.jugend&&darf('jf')){await put('jf',K.jf,partJf());await put('jfm',K.jfm,partJfm());
     for(const m of JW().members){const pk=(JW().sec.pkeys||{})[m.id];if(pk)await put('p_'+m.id,pk,partJPers(m))}}
   if(K.kf&&S.kinder&&darf('kf'))await put('kf',K.kf,partKf());
@@ -491,8 +492,8 @@ async function openData(sess){const st=getStore(),B=st.blobs;blobCache={};gelade
   const tech=await get('tech',K.tech),mann=await get('mann',K.mann),vm=sess.role==='kdt'?null:await get('vm',K.mann),jf=await get('jf',K.jf),jfm=jf?null:await get('jfm',K.jfm),ver=await get('verein',K.verein),kf=await get('kf',K.kf),pers=sess.p?await get('p_'+sess.mid,sess.p):null;
   const need={kdt:'kdt',jugend:'jfm'}[sess.role];
   if(need?!B[need]:!B.mann&&!B.tech)throw new Error('Noch keine Daten auf diesem Gerät. Bitte mit Internetverbindung erneut anmelden.');
-  const leer=()=>({members:[],events:[],docs:[],ordner:[],geraete:[],maengel:[],fahrzeuge:[],lager:JSON.parse(JSON.stringify(LAGER_STD)),aufgaben:[],fk:{},sample:false,aktivImport:1,bspWeg:1});
-  if(sess.role==='kdt'){S=await get('kdt',K.kdt);S.fk=Object.assign({},tech&&tech.fk,S.fk);if(tech)Object.assign(S,{geraete:tech.geraete,maengel:tech.maengel,fahrzeuge:tech.fahrzeuge,lager:tech.lager,aufgaben:(S.aufgaben||[]).filter(a=>a.area!=='tech').concat(tech.aufgaben||[])});
+  const leer=()=>({members:[],events:[],docs:[],ordner:[],geraete:[],maengel:[],fahrzeuge:[],rcinfo:{},lager:JSON.parse(JSON.stringify(LAGER_STD)),aufgaben:[],fk:{},sample:false,aktivImport:1,bspWeg:1});
+  if(sess.role==='kdt'){S=await get('kdt',K.kdt);S.fk=Object.assign({},tech&&tech.fk,S.fk);if(tech)Object.assign(S,{geraete:tech.geraete,maengel:tech.maengel,fahrzeuge:tech.fahrzeuge,rcinfo:tech.rcinfo||{},lager:tech.lager,aufgaben:(S.aufgaben||[]).filter(a=>a.area!=='tech').concat(tech.aufgaben||[])});
     S.events.forEach(e=>{if(!TYP[e.typ])e.typ='verein';e.docs=e.docs||[];e.docvis=e.docvis||{}});S.ordner=S.ordner||[];techInit();stammImport();bspWeg();dpImport();tsfImport();inhImport();funkImport();korr2026();
     /* Umbau für Jugendfeuerwehr und Vereinsführung: fehlende Schlüssel anlegen, danach Zugänge neu verpacken */
     for(const k of ALLKEYS)if(!S.sec.keys[k]){S.sec.keys[k]=await newKey();umbau=true}
@@ -509,7 +510,7 @@ async function openData(sess){const st=getStore(),B=st.blobs;blobCache={};gelade
       S.events.forEach(e=>{const s=(pers.hist||{})[e.id];if(s)e.anw={[sess.mid]:s}})}}
   else{const base=mann||{members:[],events:[],docs:[]};
     S=Object.assign(leer(),{members:(tech||base).members.map(m=>Object.assign({geb:'',rang:'',ausb:[]},m)),events:base.events,docs:base.docs||[],
-      geraete:tech?tech.geraete:[],maengel:tech?tech.maengel:[],fahrzeuge:tech?tech.fahrzeuge:[],lager:tech?tech.lager:JSON.parse(JSON.stringify(LAGER_STD)),fk:Object.assign({},mann&&mann.fk,tech&&tech.fk),aufgaben:tech?[...tech.aufgaben]:[],dash:tech?tech.dash:null});
+      geraete:tech?tech.geraete:[],maengel:tech?tech.maengel:[],fahrzeuge:tech?tech.fahrzeuge:[],rcinfo:tech&&tech.rcinfo||{},lager:tech?tech.lager:JSON.parse(JSON.stringify(LAGER_STD)),fk:Object.assign({},mann&&mann.fk,tech&&tech.fk),aufgaben:tech?[...tech.aufgaben]:[],dash:tech?tech.dash:null});
     LAGER=S.lager;
     if(pers){const me=S.members.find(m=>m.id===sess.mid);if(me)Object.assign(me,{geb:pers.geb,rang:pers.rang,ausb:pers.ausb||[]});
       (pers.fuehrung||[]).forEach(e=>S.events.push(e));
@@ -539,7 +540,7 @@ async function tryLogin(name,pw){await zugangLaden();const st=getStore(),h=await
 /* --- Ersteinrichtung --- */
 async function einrichten(mid,fort,gh,cfg){const keys={};for(const k of ALLKEYS)keys[k]=await newKey();
   S.sec={keys,pkeys:{},pw:{},gh:gh||{d:'',z:''}};S.fk=S.fk||{};JW();
-  const ids=[...S.docs.map(d=>d.id),...[...S.geraete,...(S.fahrzeuge||[]),...(S.maengel||[])].flatMap(x=>x.bilder||[])];ids.forEach(id=>{if(!S.fk[id])S.fk[id]=b64(rnd(32))});
+  const ids=[...S.docs.map(d=>d.id),...[...S.geraete,...(S.fahrzeuge||[]),...Object.values(S.rcinfo||{}),...(S.maengel||[])].flatMap(x=>x.bilder||[])];ids.forEach(id=>{if(!S.fk[id])S.fk[id]=b64(rnd(32))});
   const st={users:[],blobs:{},cfg,pending:[],fpending:gh&&gh.d?ids:[]};const list=[];let eigenes='';
   const zug=S.members.filter(zugBerechtigt).map(m=>({mid:m.id,name:m.name,role:rolleVon(m)}));
   zug.push({mid:'tablet',name:'Fahrzeug-Tablet',role:'tablet'});
@@ -976,7 +977,7 @@ function formDlg(){const e=draft,intern=INTERN.includes(e.typ),ein=e.typ==='eins
    ${S.docs.map(d=>`<div class="anw d_row"><label><input type="checkbox" class="f_doc" value="${d.id}"${e.docs.includes(d.id)?' checked':''}><span>${d.ordner?`<span class="muted small">${esc(d.ordner.replace(/\//g,' / '))} / </span>`:''}${esc(d.name)}</span></label>${intern?'':`<select aria-label="Sichtbarkeit ${esc(d.name)}">${Object.keys(VIS).map(k=>`<option value="${k}"${(e.docvis[d.id]||'nach')===k?' selected':''}>${VIS[k]}</option>`).join('')}</select>`}</div>`).join('')}
    <div class="addrow"><label class="btn" for="f_up">Datei hinzufügen</label><input type="file" id="f_up" multiple hidden></div></div>`}
   ${!MIT_ANW.includes(e.typ)?'':`<div><div class="head"><h3 style="flex:1">Anwesenheit</h3><button class="btn sm" data-act="alle">Alle anwesend</button></div>
-   ${people.length?people.map(m=>`<div class="anw"><span>${esc(m.name)} ${fnBadges(m)}</span><div class="seg" role="group" aria-label="${esc(m.name)}">${[['a','Da'],['e','Entsch.'],['f','Fehlt']].map(v=>`<button data-act="anw" data-id="${m.id}" data-v="${v[0]}" aria-pressed="${e.anw[m.id]===v[0]}">${v[1]}</button>`).join('')}</div></div>`).join(''):(kin?'<p class="muted">Lege zuerst unter „Kinder“ die Kinder an.</p>':jug?'<p class="muted">Lege zuerst unter „Mitglieder“ Jugendliche an.</p>':'<p class="muted">Lege zuerst unter „Mannschaft“ Personen an.</p>')}</div>`}
+   ${people.length?people.map(m=>`<div class="anw"><span>${esc(m.name)}</span><div class="seg" role="group" aria-label="${esc(m.name)}">${[['a','Da'],['e','Entsch.'],['f','Fehlt']].map(v=>`<button data-act="anw" data-id="${m.id}" data-v="${v[0]}" aria-pressed="${e.anw[m.id]===v[0]}">${v[1]}</button>`).join('')}</div></div>`).join(''):(kin?'<p class="muted">Lege zuerst unter „Kinder“ die Kinder an.</p>':jug?'<p class="muted">Lege zuerst unter „Mitglieder“ Jugendliche an.</p>':'<p class="muted">Lege zuerst unter „Mannschaft“ Personen an.</p>')}</div>`}
   <div class="err" id="formErr"></div>
   <div class="actions">${isNew?'':'<button class="btn danger" data-act="edel">Löschen</button>'}<span class="sp"></span><button class="btn" data-act="close">Abbrechen</button><button class="btn pri" data-act="save">Speichern</button></div>`)}
 function readForm(){const e=draft,v=id=>$('#'+id)?$('#'+id).value.trim():'';
@@ -1036,13 +1037,14 @@ function kalPdf(J,y,list,art){const A=KAL_ART[art],doc=new J({unit:'mm',format:'
   const font=(b,s)=>{doc.setFont(F,b?'bold':'normal');doc.setFontSize(s)};
   const passt=(t,w)=>{t=clean(t);if(doc.getTextWidth(t)<=w)return t;while(t.length>1&&doc.getTextWidth(t+'…')>w)t=t.slice(0,-1);return t.trimEnd()+'…'};
   /* Kopf */
-  const kopf=(erste)=>{let x=L;
+  const kopf=(erste)=>{let x=L,xr=R;
     if(kid){const h=erste?26:14;try{doc.addImage(KF_LOGO_PDF,'JPEG',L,8,h*0.894,h);x=L+h*0.894+6}catch(e){}}
     else{const h=erste?15:10;try{doc.addImage(LOGO,'PNG',L,9,h*LOGO_R,h);x=L+h*LOGO_R+6}catch(e){}}
-    {const h=erste?(kid?26:21):12,w=h*190/250;try{doc.addImage(WAPPEN,'PNG',R-w,erste?(kid?8:5.5):6,w,h)}catch(e){}}
-    if(erste){font(true,kid?19:20);doc.setTextColor(30);doc.text(kid?A.titel:A.titel+' '+y,x,kid?18:16.5);font(false,9.5);doc.setTextColor(110);doc.text(kid?A.sub+' '+y:A.sub,x,kid?24.5:22.5);
+    {const h=erste?(kid?26:21):12,w=h*190/250;xr=R-w-6;try{doc.addImage(WAPPEN,'PNG',R-w,erste?(kid?8:5.5):6,w,h)}catch(e){}}
+    const cx=(x+xr)/2;
+    if(erste){font(true,kid?19:20);doc.setTextColor(30);doc.text(kid?A.titel:A.titel+' '+y,cx,kid?18:16.5,{align:'center'});font(false,9.5);doc.setTextColor(110);doc.text(kid?A.sub+' '+y:A.sub,cx,kid?24.5:22.5,{align:'center'});
       const yl=kid?37:29;doc.setDrawColor(...AK);doc.setLineWidth(.6);doc.line(L,yl,R,yl);return yl+4}
-    font(true,11);doc.setTextColor(60);doc.text((kid?'Löschkids · Termine ':A.titel+' ')+y+' (Fortsetzung)',x,16);doc.setDrawColor(...AK);doc.setLineWidth(.4);doc.line(L,22,R,22);return 26};
+    font(true,11);doc.setTextColor(60);doc.text((kid?'Löschkids · Termine ':A.titel+' ')+y+' (Fortsetzung)',cx,16,{align:'center'});doc.setDrawColor(...AK);doc.setLineWidth(.4);doc.line(L,22,R,22);return 26};
   let top=kopf(true);
   const zusatz=e=>{const z=[];const g=(e.zgr||[]).length?'nur '+e.zgr.join(', '):(e.jgr||[]).length&&art!=='jugend'?'nur '+e.jgr.join(', '):e.gruppe&&e.gruppe!=='alle'&&!ZG[e.gruppe]&&!ZG_ALT[e.gruppe]?e.gruppe:'';
     if(g)z.push(g);if(e.kleid)z.push(e.kleid);if(e.ort&&!/^Gerätehaus/i.test(e.ort))z.push(e.ort);return clean(z.join(' · '))};
@@ -1067,7 +1069,7 @@ function kalPdf(J,y,list,art){const A=KAL_ART[art],doc=new J({unit:'mm',format:'
   if(!folge.length){font(false,9.5);doc.setTextColor(130);doc.text('Für dieses Jahr sind noch keine Termine eingetragen.',L+W/2,yy+10,{align:'center'})}
   folge.forEach((it,i)=>{const h=it.h?st.bh:st.rh,naechste=it.h&&folge[i+1]?st.rh:0;
     if(yy+h+naechste>(fussTop-1)){doc.addPage();top=kopf(false);yy=tabKopf(top)}
-    if(it.h){doc.setFillColor(118,124,134);if(kid)doc.roundedRect(L,yy+0.5,W,h-0.8,1.5,1.5,'F');else doc.rect(L,yy,W,h,'F');
+    if(it.h){doc.setFillColor(152,158,167);if(kid)doc.roundedRect(L,yy+0.5,W,h-0.8,1.5,1.5,'F');else doc.rect(L,yy,W,h,'F');
       font(true,st.fs+0.4);doc.setTextColor(255);doc.text(MON[it.m],CX[0],yy+h*0.68);yy+=h;return}
     const e=it.e,b=yy+h*0.66;
     font(true,st.fs);doc.setTextColor(30);doc.text(clean(datTxt(e)),CX[0],b);
@@ -1115,10 +1117,10 @@ const TABS={kf:[['k_start','Übersicht'],['k_term','Termine'],['k_kinder','Kinde
   jf:[['j_start','Übersicht'],['j_plan','Übungsplan'],['j_mitgl','Mitglieder'],['j_docs','Dokumente']],
   verein:[['v_start','Übersicht'],['v_term','Termine'],['v_aufg','Offene Punkte']],
   jugend:[['y_start','Übersicht'],['y_term','Termine'],['y_docs','Unterlagen']],
-  tablet:[['f_dash','Dashboard'],['t_fahrz','Fahrzeuge'],['t_geraete','Geräte'],['t_pruef','Prüfungen'],['t_maengel','Mängel']],
+  tablet:[['f_dash','Dashboard'],['t_fahrz','Fahrzeuge & Rollcontainer'],['t_geraete','Geräte'],['t_pruef','Prüfungen'],['t_maengel','Mängel']],
   ich:[['p_start','Übersicht'],['p_term','Termine'],['p_ausb','Lehrgänge'],['p_docs','Unterlagen']],
   kdt:[['start','Übersicht'],['plan','Jahresplan'],['uebung','Übungen'],['anw','Anwesenheit'],['einsatz','Einsätze'],['team','Mannschaft'],['docs','Dokumente'],['aufg','Offene Aufgaben']],
-  tech:[['t_start','Übersicht'],['t_fahrz','Fahrzeuge'],['t_geraete','Geräte'],['t_pruef','Prüfungen'],['t_maengel','Mängel'],['t_aufg','Offene Aufgaben']]};
+  tech:[['t_start','Übersicht'],['t_fahrz','Fahrzeuge & Rollcontainer'],['t_geraete','Geräte'],['t_pruef','Prüfungen'],['t_maengel','Mängel'],['t_aufg','Offene Aufgaben']]};
 /* Gerätebezeichnungen in Anlehnung an die genormte feuerwehrtechnische Beladung (DIN 14530, TSF/TSF-L) */
 const NORM={
  'Löschgerät und Pumpen':['Tragkraftspritze PFPN 10-1000','Tauchmotorpumpe TP 4/1','Kübelspritze A 10','Feuerlöscher PG 6 (Pulver)','Feuerlöscher K 5 (Kohlendioxid)','Zumischer Z 2','Schaumstrahlrohr S 2','Schaumstrahlrohr M 2','Schaummittelbehälter 20 l','Löschrucksack','Feuerpatsche'],
@@ -1177,7 +1179,8 @@ function vTStart(){const c=checks(),f=c.filter(x=>pst(x.p)[0]!=='frei'),o=offen(
   return `${sampleNote()}
   <div class="stats"><div class="panel stat"><b>${S.geraete.length}</b>Geräte</div><div class="panel stat"><b>${S.geraete.filter(g=>g.zustand==='ok').length}</b>einsatzbereit</div><button class="panel stat statbtn${f.length?' alarm':''}" data-act="tab" data-id="t_pruef"><b>${f.length}</b>Prüfungen fällig</button><button class="panel stat statbtn${o.length?' alarm':''}" data-act="tab" data-id="t_maengel"><b>${o.length}</b>offene Mängel</button><button class="panel stat statbtn${auOffen('tech').length?' alarm':''}" data-act="tab" data-id="t_aufg"><b>${auOffen('tech').length}</b>offene Aufgaben</button></div>
   <div class="head"><h2>Fahrzeuge</h2></div>
-  ${fz().length?`<ul class="list panel">${[...fz()].sort((a,b)=>(a.tuev||'0').localeCompare(b.tuev||'0')).map(fzCard).join('')}</ul>`:'<p class="panel muted">Noch kein Fahrzeug angelegt.</p>'}
+  ${fz().length?`<ul class="list panel">${fzSortiert().map(fzCard).join('')}</ul>`:'<p class="panel muted">Noch kein Fahrzeug angelegt.</p>'}
+  ${rcBlock()}
   <div class="head"><h2>Fällige Prüfungen</h2></div>
   ${f.length?`<ul class="list panel">${f.map(checkRow).join('')}</ul>`:'<p class="panel muted">In den nächsten 30 Tagen ist keine Prüfung fällig.</p>'}
   <div class="head"><h2>Offene Mängel</h2><button class="btn pri" data-act="xnew">Mangel melden</button></div>
@@ -1308,14 +1311,18 @@ const fz=()=>S.fahrzeuge||(S.fahrzeuge=[]);
 const monEnd=m=>{const [y,mo]=m.split('-').map(Number);return iso(new Date(y,mo,0))};
 const mmjj=m=>m.slice(5,7)+'/'+m.slice(0,4);
 function tst(m){if(!m)return ['bad','Termin fehlt'];const t=tage(monEnd(m));return t<0?['bad','überfällig seit '+(-t)+(t===-1?' Tag':' Tagen')]:t<=60?['termin','fällig in '+t+(t===1?' Tag':' Tagen')]:['frei','gültig, noch '+Math.floor(t/30.4)+' Monate']}
+/* Feste Reihenfolge: TSF-L 44/1, MTW 14/1, Anhänger Schlauch, Anhänger Zelt, danach alle weiteren nach Namen */
+const fzRang=v=>{const n=v.name||'';return /44\/1/.test(n)?0:/14\/1/.test(n)?1:/schlauch/i.test(n)?2:/zelt/i.test(n)?3:4};
+const fzSortiert=()=>[...fz()].sort((a,b)=>fzRang(a)-fzRang(b)||(a.name||'').localeCompare(b.name||'','de'));
 function fzCard(v){const s=tst(v.tuev),n=stueck(S.geraete.filter(g=>g.auf===v.name));
-  return `<li><button class="row fzrow" data-act="vedit" data-id="${v.id}"><span class="tuev ${s[0]}"><i>TÜV bis</i><b>${v.tuev?mmjj(v.tuev):'?'}</b></span>${thumb(v)}
+  return `<li><button class="row fzrow" data-act="vedit" data-id="${v.id}"><span class="fzlinks">${v.bilder&&v.bilder[0]?`<img class="fzbild" data-img="${v.bilder[0]}" alt="">`:'<span class="fzbild fzleer" aria-hidden="true">🚒</span>'}<span class="tuevk ${s[0]}">TÜV ${v.tuev?mmjj(v.tuev):'?'}</span></span>
   <span class="txt"><strong>${esc(v.name)}</strong><span class="muted small">${esc([v.typ,v.kennz].filter(Boolean).join(' · ')||'Typ und Kennzeichen nicht eingetragen')}</span>
-  <span class="tags"><span class="tag ${s[0]}">TÜV ${s[1]}</span>${v.uvv?`<span class="tag ${tst(v.uvv)[0]==='frei'?'':tst(v.uvv)[0]}">UVV-Prüfung bis ${mmjj(v.uvv)}</span>`:''}${v.service?`<span class="tag ${tst(v.service)[0]==='frei'?'':tst(v.service)[0]}">Kundendienst bis ${mmjj(v.service)}</span>`:''}<span class="tag">${n} Stück verlastet</span></span></span></button></li>`}
-function vFahrz(){const l=[...fz()].sort((a,b)=>(a.tuev||'0').localeCompare(b.tuev||'0'));
+  <span class="tags">${s[0]!=='frei'?`<span class="tag ${s[0]}">TÜV ${s[1]}</span>`:''}${v.uvv?`<span class="tag ${tst(v.uvv)[0]==='frei'?'':tst(v.uvv)[0]}">UVV-Prüfung bis ${mmjj(v.uvv)}</span>`:''}${v.service?`<span class="tag ${tst(v.service)[0]==='frei'?'':tst(v.service)[0]}">Kundendienst bis ${mmjj(v.service)}</span>`:''}<span class="tag">${n} Stück verlastet</span></span></span></button></li>`}
+function vFahrz(){const l=fzSortiert();
   return `<div class="head"><h2>Fahrzeuge</h2><button class="btn pri" data-act="vnew">Fahrzeug hinzufügen</button></div>
-  <p class="muted small" style="margin:0">Sortiert nach TÜV-Termin. Ein Termin gilt bis zum Ende des eingetragenen Monats und wird 60 Tage vorher als fällig markiert.</p>
-  ${l.length?`<ul class="list panel">${l.map(fzCard).join('')}</ul>`:'<p class="panel muted">Noch kein Fahrzeug angelegt.</p>'}`}
+  <p class="muted small" style="margin:0">Ein TÜV-Termin gilt bis zum Ende des eingetragenen Monats und wird 60 Tage vorher als fällig markiert.</p>
+  ${l.length?`<ul class="list panel">${l.map(fzCard).join('')}</ul>`:'<p class="panel muted">Noch kein Fahrzeug angelegt.</p>'}
+  ${rcBlock()}`}
 function fzDlg(){const v=vdraft,isNew=!fz().some(x=>x.id===v.id);
   openDlg(`<h2>${isNew?'Fahrzeug hinzufügen':esc(v.name)}</h2>
   <div class="f">
@@ -1341,6 +1348,25 @@ function fzAct(a,id,b){
     const i=fz().findIndex(x=>x.id===v.id);if(i<0){fz().push(v);if(!LAGER[v.name])LAGER[v.name]=[]}else fz()[i]=v;if(alt&&alt!==v.name&&LAGER[alt]&&!LAGER[v.name]){LAGER[v.name]=LAGER[alt];delete LAGER[alt]}$('#dlg').close();done('Gespeichert')}
   else if(a==='vdel'){if(!armed(b))return true;picWipe(vdraft.bilder);S.fahrzeuge=fz().filter(v=>v.id!==vdraft.id);$('#dlg').close();done('Gelöscht')}
   else return false;return true}
+/* ---------- Rollcontainer: Bild und Notiz je Container (Inhalt kommt aus den Geräten) ---------- */
+const rcI=()=>S.rcinfo||(S.rcinfo={});
+const rcNamen=()=>(LAGER['Rollcontainer']||[]);
+let rdraft=null;
+function rcCard(n,i){const d=rcI()[n]||{},st=stueck(S.geraete.filter(g=>g.auf==='Rollcontainer'&&g.sub===n)),mg=offen().filter(m=>{const g=S.geraete.find(x=>x.id===m.gid);return g&&g.auf==='Rollcontainer'&&g.sub===n}).length;
+  return `<li><button class="row fzrow" data-act="rcedit" data-id="${i}"><span class="fzlinks">${d.bilder&&d.bilder[0]?`<img class="fzbild" data-img="${d.bilder[0]}" alt="">`:'<span class="fzbild fzleer" aria-hidden="true">🧰</span>'}</span>
+  <span class="txt"><strong>${esc(n)}</strong>${d.notiz?`<span class="muted small">${esc(d.notiz.split('\n')[0])}</span>`:''}<span class="tags"><span class="tag">${st} Stück verlastet</span>${mg?`<span class="tag bad">${mg} offene${mg===1?'r Mangel':' Mängel'}</span>`:''}</span></span></button></li>`}
+const rcBlock=()=>`<div class="head"><h2>Rollcontainer</h2></div>${rcNamen().length?`<ul class="list panel">${rcNamen().map(rcCard).join('')}</ul>`:'<p class="panel muted">Noch keine Rollcontainer angelegt. Sie werden unter „Geräte“ bei „Verlastet im“ gepflegt.</p>'}`;
+function rcDlg(){const n=rdraft.name,ro=RO();
+  openDlg(`<h2>${esc(n)}</h2><p class="muted small" style="margin:0">Rollcontainer · ${stueck(S.geraete.filter(g=>g.auf==='Rollcontainer'&&g.sub===n))} Stück verlastet</p>
+  ${ro?(rdraft.notiz?`<p style="white-space:pre-wrap">${esc(rdraft.notiz)}</p>`:'')+((rdraft.bilder||[]).length?`<div class="pics">${rdraft.bilder.map(id=>`<span class="pic"><img data-img="${id}" data-act="picview" data-id="${id}" alt="Bild ansehen"></span>`).join('')}</div>`:'')
+    :`<div class="f"><label class="wide">Notizen<textarea id="r_notiz" style="min-height:70px" placeholder="z. B. Standort, Besonderheiten, Beladeplan">${esc(rdraft.notiz||'')}</textarea></label></div>${picsHtml(rdraft,'r')}`}
+  <div class="actions"><button class="btn" data-act="rcinhalt" data-id="${esc(n)}">Inhalt anzeigen</button><span class="sp"></span><button class="btn" data-act="close">${ro?'Schließen':'Abbrechen'}</button>${ro?'':'<button class="btn pri" data-act="rcsave">Speichern</button>'}</div>`)}
+function readR(){const t=$('#r_notiz');if(t)rdraft.notiz=t.value.trim()}
+function rcAct(a,id){
+  if(a==='rcedit'){const n=rcNamen()[+id];if(n===undefined)return true;rdraft=Object.assign({name:n,notiz:'',bilder:[]},JSON.parse(JSON.stringify(rcI()[n]||{})));rcDlg();return true}
+  if(a==='rcsave'){readR();const alt=rcI()[rdraft.name]||{};picWipe((alt.bilder||[]).filter(x=>!(rdraft.bilder||[]).includes(x)));rcI()[rdraft.name]={notiz:rdraft.notiz||'',bilder:rdraft.bilder||[]};$('#dlg').close();done('Gespeichert');return true}
+  if(a==='rcinhalt'){$('#dlg').close();gf=Object.assign(gf,{q:'',kat:'',zust:'',pruef:'',auf:'Rollcontainer',sub:id});tab='t_geraete';render();window.scrollTo(0,0);return true}
+  return false}
 /* ---------- Bilder (Fahrzeuge und Geräte) ---------- */
 const imgUrl=new Map();
 function hydrate(){document.querySelectorAll('img[data-img]:not([src])').forEach(async im=>{const id=im.dataset.img;let u=imgUrl.get(id);
@@ -1352,7 +1378,7 @@ const picsHtml=(d,kind)=>`<div><h3>Bilder</h3>
   ${(d.bilder||[]).length?`<div class="pics">${d.bilder.map(id=>`<span class="pic"><img data-img="${id}" data-act="picview" data-id="${id}" alt="Bild ansehen"><button class="picx" data-act="picdel" data-id="${id}" data-kind="${kind}" aria-label="Bild entfernen">×</button></span>`).join('')}</div>`:'<p class="muted small" style="margin:4px 0 0">Noch keine Bilder.</p>'}
   <div class="addrow"><label class="btn" for="pic_cam">Foto aufnehmen</label><label class="btn" for="pic_gal">Aus Galerie wählen</label>
    <input type="file" id="pic_cam" class="pic_in" data-kind="${kind}" accept="image/*" capture="environment" hidden><input type="file" id="pic_gal" class="pic_in" data-kind="${kind}" accept="image/*" multiple hidden></div></div>`;
-const picDraft=kind=>kind==='v'?{d:vdraft,read:readV,show:fzDlg}:{d:gdraft,read:readG,show:geraetDlg};
+const picDraft=kind=>kind==='r'?{d:rdraft,read:readR,show:rcDlg}:kind==='v'?{d:vdraft,read:readV,show:fzDlg}:{d:gdraft,read:readG,show:geraetDlg};
 async function picAdd(inp){const p=picDraft(inp.dataset.kind);p.read();p.d.bilder=p.d.bilder||[];let n=0;
   for(const f of inp.files){try{const b=await shrink(f),id='img'+uid();await idbDo('readwrite',s=>s.put(b,id));fileNeu(id);p.d.bilder.push(id);n++}catch(e){toast('Ein Bild konnte nicht gelesen werden')}}
   p.show();if(n)toast(n+(n===1?' Bild':' Bilder')+' hinzugefügt. Zum Behalten „Speichern“ drücken.')}
@@ -1752,6 +1778,7 @@ function armed(b){if(b.dataset.armed)return true;const o=b.textContent;b.dataset
 const done=msg=>{save();render();if(msg)toast(msg)};
 
 document.addEventListener('click',async ev=>{if(!ev.target.closest('#areasw')&&$('#areaMenu')&&!$('#areaMenu').hidden){$('#areaMenu').hidden=true;$('#areaBtn').setAttribute('aria-expanded','false')}const b=ev.target.closest('[data-act]');if(!b)return;const a=b.dataset.act,id=b.dataset.id;
+  if(rcAct(a,id))return;
   if(roAct(a,id))return;
   if(a==='kal'){const [art,j]=id.split(':');kalLaden(art,+j,kalListe(art,+j));return}
   if(anwAct(a,id,b)||jfAct(a,id,b)||kfAct(a,id,b))return;
@@ -1819,7 +1846,7 @@ document.addEventListener('click',async ev=>{if(!ev.target.closest('#areasw')&&$
   else if(a==='dfrei'){const d=S.docs.find(d=>d.id===id);d.frei=!d.frei;done()}
   else if(a==='ddel'){if(!armed(b))return;S.docs=S.docs.filter(d=>d.id!==id);S.events.forEach(e=>{e.docs=(e.docs||[]).filter(x=>x!==id)});try{await idbDo('readwrite',s=>s.delete(id))}catch(e){}done('Gelöscht')}
   else if(a==='dopen'){try{toast('Wird geöffnet …');const blob=await idbDo('readonly',s=>s.get(id))||await fileHolen(id);if(!blob)throw 0;const l=document.createElement('a');l.href=URL.createObjectURL(blob);l.target='_blank';l.rel='noopener';document.body.append(l);l.click();l.remove()}catch(e){toast('Die Datei ist auf diesem Gerät nicht vorhanden')}}
-  else if(a==='clear'){if(!armed(b))return;S={members:S.members,events:[],docs:[],ordner:[],geraete:S.geraete.filter(g=>g.rc||g.tsf),lager:S.lager,maengel:[],aufgaben:[],fahrzeuge:fz(),sample:false,aktivImport:1,rcImport:1,sec:S.sec};done('Beispieldaten entfernt')}
+  else if(a==='clear'){if(!armed(b))return;S={members:S.members,events:[],docs:[],ordner:[],geraete:S.geraete.filter(g=>g.rc||g.tsf),lager:S.lager,maengel:[],aufgaben:[],fahrzeuge:fz(),rcinfo:S.rcinfo||{},sample:false,aktivImport:1,rcImport:1,sec:S.sec};done('Beispieldaten entfernt')}
   else if(a==='export'){const l=document.createElement('a');l.href=URL.createObjectURL(new Blob([JSON.stringify(Object.assign({},S,{sec:undefined}),null,1)],{type:'application/json'}));l.download='ff-glosberg-sicherung-'+today()+'.json';document.body.append(l);l.click();l.remove()}
 });
 document.addEventListener('submit',ev=>{ev.preventDefault();
