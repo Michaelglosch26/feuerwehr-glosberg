@@ -204,7 +204,7 @@ div.row:hover{background:none}
 .anwh{min-width:62px;max-width:72px;padding:6px 3px!important}.anwh b{display:block;font-size:.8rem;color:var(--text)}.anwh span{display:block;font-size:.68rem;color:var(--muted);font-weight:500;white-space:normal;line-height:1.2;max-height:3.7em;overflow:hidden;hyphens:auto}
 .anwc{width:38px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--bg);color:var(--text);font-weight:700;font-size:1rem;cursor:pointer}
 .anwc.s-a{background:#1f6f3f;border-color:#2e9a59;color:#fff}.anwc.s-e{background:#6b5a14;border-color:#b0911f;color:#fff}.anwc.s-f{background:#6e1a24;border-color:#b3182d;color:#fff}
-.anwc.na.s-0{border-style:dashed;opacity:.45}.anwx{color:var(--muted)}.anwtab td{position:relative}.anwn-i{position:absolute;top:0;right:0;width:18px;height:18px;padding:0;border:0;border-radius:50%;background:#c58a12;color:#fff;font-size:.7rem;line-height:18px;cursor:pointer}.anwq{font-weight:600;padding:0 10px!important}.anws td,.anws th{font-weight:700;color:var(--muted)}
+.anwc.na.s-0{border-style:dashed;opacity:.45}.anwx{color:var(--muted)}.gebvorbei{opacity:.6}.gebheute{background:color-mix(in srgb,var(--red) 16%,transparent)}.anwtab td{position:relative}.anwn-i{position:absolute;top:0;right:0;width:18px;height:18px;padding:0;border:0;border-radius:50%;background:#c58a12;color:#fff;font-size:.7rem;line-height:18px;cursor:pointer}.anwq{font-weight:600;padding:0 10px!important}.anws td,.anws th{font-weight:700;color:var(--muted)}
 table{border-collapse:collapse;width:100%}
 th,td{text-align:left;padding:8px 6px;border-top:1px solid var(--line)}
 thead th{border-top:0;font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
@@ -499,6 +499,10 @@ async function openData(sess){const st=getStore(),B=st.blobs;blobCache={};gelade
     S.members.forEach(m=>{const n=fns(m).map(fnNeu).join(', ');if(n!==(m.funktion||''))m.funktion=n});
     if(!S.kfFunk){for(const m of S.members){const f=KF0[await nameHash(m.name)];if(f!==undefined&&!fns(m).includes(FNV[f])){m.funktion=[...fns(m),FNV[f]].join(', ');umbau=true}}S.kfFunk=1}
     if(!S.korr2026b)await korr2026b();
+    if(!S.korr2026c)await korr2026c();
+    if(!S.korr2026d)await korr2026d();
+    if(!S.korr2026e)await korr2026e();
+    {const t=S.events.find(e=>e.id==='k26d_thl');if(t&&!t.ort){t.ort='Gundelsdorf';t.eigen=false;if(SESS)setTimeout(save,0)}}
     sess.keys=kdtKeys(sess.x)}
   else if(sess.role==='jugend'){S=leer();S.events=jfm.events||[];S.fk=Object.assign({},jfm.fk);S.jugend={members:jfm.members||[],docs:jfm.docs||[],sec:{pkeys:{}}};
     if(pers){const me=S.jugend.members.find(m=>m.id===sess.mid);if(me)Object.assign(me,{geb:pers.geb,eintritt:pers.eintritt,gruppen:pers.gruppen||[]});
@@ -804,6 +808,18 @@ function evRow(e){const d=toD(e.datum),n=Object.values(e.anw||{}).filter(v=>v===
   <span class="tags"><span class="tag ${e.typ}">${TYP[e.typ]}</span>${evBis(e)!==e.datum?`<span class="tag">bis ${kurz(e.bis)}</span>`:''}${has?`<span class="tag">${n} anwesend</span>`:''}${e.docs&&e.docs.length?`<span class="tag">${e.docs.length} Dokument${e.docs.length>1?'e':''}</span>`:''}${e.typ==='einsatz'&&e.eigen?'<span class="tag">eigener Schutzbereich</span>':''}${e.typ==='fuehrung'?'<span class="tag">nur Kommandanten</span>':e.frei?'<span class="tag frei">für Mannschaft sichtbar</span>':''}</span></span></button></li>`}
 const evList=(l,leer)=>l.length?`<ul class="list panel">${l.map(evRow).join('')}</ul>`:`<p class="panel muted">${leer}</p>`;
 
+/* Geburtstage: zu sehen sind die der letzten 7 und der nächsten 14 Tage, aufgeklappt alle */
+let gebAlle=false;
+function gebBlock(list,wer){const h=new Date();h.setHours(0,0,0,0);const mit=list.filter(m=>m.geb),ohne=list.length-mit.length;
+  if(!mit.length)return `<div class="head"><h2>Geburtstage</h2></div><p class="panel muted">Noch keine Geburtsdaten eingetragen.</p>`;
+  const l=mit.map(m=>{const [gy,gm,gd]=m.geb.split('-').map(Number);let d=new Date(h.getFullYear(),gm-1,gd);
+      if((d-h)/864e5<-7)d=new Date(h.getFullYear()+1,gm-1,gd);else if((d-h)/864e5>358)d=new Date(h.getFullYear()-1,gm-1,gd);
+      return {m,d,tage:Math.round((d-h)/864e5),jahre:d.getFullYear()-gy}}).sort((a,b)=>a.tage-b.tage||nachSort(a.m,b.m));
+  const nah=l.filter(x=>x.tage>=-7&&x.tage<=14),zeig=gebAlle?l:nah;
+  const wann=x=>x.tage===0?'heute':x.tage===1?'morgen':x.tage===-1?'gestern':x.tage<0?'vor '+(-x.tage)+' Tagen':'in '+x.tage+' Tagen';
+  const li=x=>`<li class="${x.tage===0?'gebheute':x.tage<0?'gebvorbei':''}"><div class="row"><span class="dt"><b>${pad(x.d.getDate())}</b><i>${MON[x.d.getMonth()].slice(0,3)}</i></span><span class="txt"><strong>${esc(x.m.name)}${x.tage===0?' 🎂':''}</strong><span class="muted small">${x.tage<0?'ist':'wird'} ${x.jahre} Jahre ${x.tage<0?'geworden':''} · ${wann(x)}</span></span></div></li>`;
+  const knopf=`<button class="btn sm" data-act="geballe">${gebAlle?'Nur letzte Woche und nächste 2 Wochen':'Alle anzeigen ('+mit.length+')'}</button>`;
+  return `<div class="head"><h2>Geburtstage</h2>${knopf}</div>${zeig.length?`<ul class="list panel">${zeig.map(li).join('')}</ul>`:`<p class="panel muted" style="margin:0">In der letzten Woche und den nächsten zwei Wochen hat niemand Geburtstag.</p>`}${gebAlle&&ohne?`<p class="muted small" style="margin:6px 2px 0">${ohne} ${wer} ohne Geburtsdatum. Es lässt sich bei der jeweiligen Person eintragen.</p>`:''}`}
 function vStart(){const y=new Date().getFullYear(),t=today();
   const next=evs().filter(e=>evBis(e)>=t).slice(0,5);
   const ueb=evs('uebung',y).filter(e=>Object.keys(e.anw||{}).length);
@@ -815,6 +831,7 @@ function vStart(){const y=new Date().getFullYear(),t=today();
   <div class="stats"><div class="panel stat"><b>${evs('uebung',y).length}</b>Übungen ${y}</div><div class="panel stat"><b>${evs('einsatz',y).length}</b>Einsätze ${y}</div><div class="panel stat"><b>${act.length?Math.round(sum/act.length):0} %</b>Übungsbeteiligung</div><div class="panel stat"><b>${act.length}</b>Aktive</div><button class="panel stat statbtn${auOffen('kdt').length?' alarm':''}" data-act="tab" data-id="aufg"><b>${auOffen('kdt').length}</b>offene Aufgaben</button></div>
   <div class="head"><h2>Nächste Termine</h2><button class="btn pri" data-act="new" data-typ="uebung">Übung planen</button><button class="btn" data-act="new" data-typ="einsatz">Einsatz notieren</button></div>
   ${evList(next,'Keine kommenden Termine eingetragen.')}
+  ${gebBlock(act,'Aktive')}
   <div class="head"><h2>Übungsbeteiligung ${y}</h2></div>
   ${rows?`<div class="panel scroll"><table><thead><tr><th>Name</th><th>Übungen</th><th>Quote</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:'<p class="panel muted">Lege zuerst unter „Mannschaft“ deine Feuerwehrdienstleistenden an.</p>'}
   <div class="head"><h2>Daten</h2></div>
@@ -1466,7 +1483,7 @@ function korr2026(){if(S.korr2026)return;const ev=id=>S.events.find(e=>e.id===id
   S.korr2026=1;if(SESS)setTimeout(save,0)}
 
 /* ================= Sammelkorrektur 2026 (Anwesenheitslisten). Namen nur als Prüfsummen, damit keine Namen in der öffentlichen Datei stehen ================= */
-const K26B_N=[["QCrDqzXFQAqa7aiIVV/ysZ5+1N2dpA+BqPpbMAfnyVQ="],["AAnWRbvlVxxk5XyaZ6tif3dNQ0Ki/z6JN5fkcjHwF5c="],["bP+5dojbXBHxsig443R+Ydxj0E9aodi1x9VXY4HAonw="],["MoylIf91a4dffus5csxvzfaFy7iBJMTNbiFJOK5riJM="],["u6dLNjRinODWeyN/Le582gNztRyYqcyPoTi9BqkaW3k="],["QPf1GN88gPMyyphBEKNgWfliWvGGsN7JwlP0sYz8cLw="],["/3Y1Iq2ITaL4cwiLmpfiTJdUZxogz664rKDF4knS3O0="],["5eIzSuUWczmnmFrqRUStxMzCyd8k8E0WiUhaunOXjW0="],["sDiuFdLZQ50DkKWFendL/9PF7vq3ha3A4t1hm+5IJ3g="],["NEaHkkSPCMBIbPO9fKz9dtmhkjezwB6112h7rZwydCs="],["C+MiGGs2E/mYUcPxAX+Sc6FMwy+0nokmlNTJlXosZrQ=","7jyv6CFLBgLlRtOTAiwo28y8EnsysW+MIDfX6tUNwMU="],["lXzBeNFj4g8+l+f4yI4Yh07YIRw/S3yX5NtkYn/VhTk="],["cW7ouJbVC1yJ+sYKCYBdwXP8H6g/gcSf0gHVfLICPjc="],["oIea/QJ4yEm0Qcu67JJG/lK8BbzOA1/TEjVwbTr9biM="],["BJm9o+Dw/tKNFInkqw3HgjgkPS2axULhsSkiiNA61I4="],["glGt1LhxNoJrDF8b/D2jqO5C0tQsf5a+zAGFuGfx7QU="],["i6n6EqjWcgLqh2kwfK2GnWnGTZEdXcgw/gIeDuyrOBk="],["pV2bX7Fw172fn//uoDIC0Kri48GJv0hUf/FkYlZnWvw="],["b2EOzse/Xgidfr40pHn7pckQ6Yey2FQV/6If2uK4dhc="],["VlwhplTp3JStuamYVhcOdOIptPlc011Ou+5Fd4stlH8="],["PECopSbHZbXHxWPtZ9fcJMI+PQcmn5bdPWD/Cwj3MxY="],["/p1xpzMwFTODdpDN84mmKuiwkiMrDRJxkJCkYSogc74="],["WROsAiZdGZaxWfi/7bQ/6jU42LeLkKD+i6HkX7MGlFM="],["7/nD1oR8TzUKru9wYHRePIK4JC50ZyGUVPgjFU9QGl4="],["Ruuu+ZIy6O3zFooDaHVWxOuJvc5Nr00AyB95lS3Z9K8="],["I8tnW0xd6CrBleW8YfC2k9cZuiaMxdGQkswWJF4PSPY="],["mQKLaa2PNtRi8QxcGEUhWyuI9ryn327Dg/Dau/rej0E="],["gLyKKIHBsIq7GQxTAwp6BEDFnnmmFstX+AYsN8u8arA="]];
+const K26B_N=[["QCrDqzXFQAqa7aiIVV/ysZ5+1N2dpA+BqPpbMAfnyVQ="],["AAnWRbvlVxxk5XyaZ6tif3dNQ0Ki/z6JN5fkcjHwF5c="],["bP+5dojbXBHxsig443R+Ydxj0E9aodi1x9VXY4HAonw="],["MoylIf91a4dffus5csxvzfaFy7iBJMTNbiFJOK5riJM="],["u6dLNjRinODWeyN/Le582gNztRyYqcyPoTi9BqkaW3k="],["QPf1GN88gPMyyphBEKNgWfliWvGGsN7JwlP0sYz8cLw="],["/3Y1Iq2ITaL4cwiLmpfiTJdUZxogz664rKDF4knS3O0="],["5eIzSuUWczmnmFrqRUStxMzCyd8k8E0WiUhaunOXjW0="],["sDiuFdLZQ50DkKWFendL/9PF7vq3ha3A4t1hm+5IJ3g="],["NEaHkkSPCMBIbPO9fKz9dtmhkjezwB6112h7rZwydCs="],["C+MiGGs2E/mYUcPxAX+Sc6FMwy+0nokmlNTJlXosZrQ=","7jyv6CFLBgLlRtOTAiwo28y8EnsysW+MIDfX6tUNwMU="],["lXzBeNFj4g8+l+f4yI4Yh07YIRw/S3yX5NtkYn/VhTk="],["cW7ouJbVC1yJ+sYKCYBdwXP8H6g/gcSf0gHVfLICPjc="],["oIea/QJ4yEm0Qcu67JJG/lK8BbzOA1/TEjVwbTr9biM="],["BJm9o+Dw/tKNFInkqw3HgjgkPS2axULhsSkiiNA61I4="],["glGt1LhxNoJrDF8b/D2jqO5C0tQsf5a+zAGFuGfx7QU="],["i6n6EqjWcgLqh2kwfK2GnWnGTZEdXcgw/gIeDuyrOBk="],["pV2bX7Fw172fn//uoDIC0Kri48GJv0hUf/FkYlZnWvw="],["b2EOzse/Xgidfr40pHn7pckQ6Yey2FQV/6If2uK4dhc="],["VlwhplTp3JStuamYVhcOdOIptPlc011Ou+5Fd4stlH8="],["PECopSbHZbXHxWPtZ9fcJMI+PQcmn5bdPWD/Cwj3MxY="],["/p1xpzMwFTODdpDN84mmKuiwkiMrDRJxkJCkYSogc74="],["WROsAiZdGZaxWfi/7bQ/6jU42LeLkKD+i6HkX7MGlFM="],["7/nD1oR8TzUKru9wYHRePIK4JC50ZyGUVPgjFU9QGl4="],["Ruuu+ZIy6O3zFooDaHVWxOuJvc5Nr00AyB95lS3Z9K8="],["I8tnW0xd6CrBleW8YfC2k9cZuiaMxdGQkswWJF4PSPY="],["mQKLaa2PNtRi8QxcGEUhWyuI9ryn327Dg/Dau/rej0E="],["gLyKKIHBsIq7GQxTAwp6BEDFnnmmFstX+AYsN8u8arA="],["nClJA3oJ6r5vtJwarbczAOV7h0HPT0tossR44GtjxOI="]];
 const K26B_A={"k26_funk":[0,1,2,3,4,5,6,7,8,9,10,11],"k26_masch":[9,1,12,6,7,2,13,3],"k26_rc":[9,14,6,10,2,7,15,5,11,16,17,18],"dp26_2":[9,7,3,19,8,18,6,13],"dp26_3":[0,2,17,18,6,1,7,19,11,3,13,8,14,16,23],"k26b_masch":[3,0,1,18,19,2,13,7],"k26b_baum":[3,0,1,18,19,2,13,7],"dp26_4":[18,19,17,10,3,20,21,15,2,22],"dp26_6":[1,5,13,7,4,11,2,23,3,18,8],"dp26_7":[3,15,4,23,18,17,6,7,19,1],"dp26_8":[3,2,10,0,1,18],"dp26_9":[15,21,17,2,14,10,9,6,13,24,18,3,19],"dp26_10":[17,1,0,6,5,4,12,14,10,13,7,9,19,2,8,25,11],"k26b_vu":[13,12,7,15,6,8,9],"dp26_14":[9,18,4,0,13,21,1,5,17,2,15,3,7],"dp26_30":[0,1,17,15,4,8,22,23,7],"k26b_b1":[23,26,24,6,4,12,10,0,1,11,22,19,18,17,2,9,27,21,7,13,3]};
 const K26B_NOTIZ={"k26b_b1":{"1":"Handydisplay zersplittert"}};
 async function korr2026b(){if(S.korr2026b)return;const ev=id=>S.events.find(e=>e.id===id);
@@ -1488,6 +1505,33 @@ async function korr2026b(){if(S.korr2026b)return;const ev=id=>S.events.find(e=>e
     l.forEach(i=>{const m=pid(i);if(!m){fehl++;return}if(!e.anw[m])e.anw[m]='a'});
     for(const [i,t] of Object.entries(K26B_NOTIZ[id]||{})){const m=pid(+i);if(m){e.anwNotiz=e.anwNotiz||{};if(!e.anwNotiz[m])e.anwNotiz[m]=t}}}
   S.korr2026b=1;if(fehl)setTimeout(()=>toast(fehl+' Einträge aus den Anwesenheitslisten passten zu keinem Namen in der Mannschaft'),1500);if(SESS)setTimeout(save,0)}
+
+/* Zweite Runde Anwesenheitslisten (16.11.2026), gleiche Prüfsummen wie oben */
+const K26C_A={"dp26_30":[3,9],"dp26_42":[3,19,10,6,16,13,14,8,7,9],"k26c_trage":[8,10,1,6,2,19,9,11,3],"dp26_44":[14,17,6,22,4,12,7,8,13,9,3],"dp26_46":[15,10,0,1,6,4,14,8,17,2,13,3,9]};
+async function korr2026c(){if(S.korr2026c)return;const ev=id=>S.events.find(e=>e.id===id);
+  if(!S.events.some(e=>e.id==='k26c_trage'))S.events.push({id:'k26c_trage',typ:'einsatz',datum:'2026-09-23',bis:'',zeit:'',ende:'',titel:'Tragehilfe',gruppe:'',kleid:'',ort:'',leiter:'',notiz:'',anw:{},anwNotiz:{},docs:[],docvis:{},frei:false,eigen:true});
+  const map={};for(const m of S.members){const t=String(m.name||'').trim().split(/\s+/);
+    for(const n of [m.name,t.length===2?t[1]+' '+t[0]:null].filter(Boolean)){const x=await nameHash(n);if(!map[x])map[x]=m.id}}
+  const pid=i=>K26B_N[i].map(x=>map[x]).find(Boolean);let fehl=0;
+  for(const [id,l] of Object.entries(K26C_A)){const e=ev(id);if(!e)continue;e.anw=e.anw||{};l.forEach(i=>{const m=pid(i);if(!m){fehl++;return}if(!e.anw[m])e.anw[m]='a'})}
+  S.korr2026c=1;if(fehl)setTimeout(()=>toast(fehl+' Einträge aus den Anwesenheitslisten passten zu keinem Namen in der Mannschaft'),1800);if(SESS)setTimeout(save,0)}
+
+/* Dritte Runde: Einsatz 16.09.2026 */
+async function korr2026d(){if(S.korr2026d)return;
+  if(!S.events.some(e=>e.id==='k26d_thl'))S.events.push({id:'k26d_thl',typ:'einsatz',datum:'2026-09-16',bis:'',zeit:'',ende:'',titel:'THL – Erkundung (Bombenentschärfung)',gruppe:'',kleid:'',ort:'Gundelsdorf',leiter:'',notiz:'',anw:{},anwNotiz:{},docs:[],docvis:{},frei:false,eigen:false});
+  const map={};for(const m of S.members){const t=String(m.name||'').trim().split(/\s+/);
+    for(const n of [m.name,t.length===2?t[1]+' '+t[0]:null].filter(Boolean)){const x=await nameHash(n);if(!map[x])map[x]=m.id}}
+  const e=S.events.find(e=>e.id==='k26d_thl');let fehl=0;e.anw=e.anw||{};
+  [9,28,13,2,8,11,6,17,15,19].forEach(i=>{const m=K26B_N[i].map(x=>map[x]).find(Boolean);if(!m){fehl++;return}if(!e.anw[m])e.anw[m]='a'});
+  S.korr2026d=1;if(fehl)setTimeout(()=>toast(fehl+' Einträge aus den Anwesenheitslisten passten zu keinem Namen in der Mannschaft'),2100);if(SESS)setTimeout(save,0)}
+
+/* Vierte Runde: Großübung 26.09.2026 */
+async function korr2026e(){if(S.korr2026e)return;const e=S.events.find(e=>e.id==='dp26_43');if(!e){S.korr2026e=1;return}
+  const map={};for(const m of S.members){const t=String(m.name||'').trim().split(/\s+/);
+    for(const n of [m.name,t.length===2?t[1]+' '+t[0]:null].filter(Boolean)){const x=await nameHash(n);if(!map[x])map[x]=m.id}}
+  let fehl=0;e.anw=e.anw||{};
+  [3,12,23,4,14,19,7,15,6,9,13].forEach(i=>{const m=K26B_N[i].map(x=>map[x]).find(Boolean);if(!m){fehl++;return}if(!e.anw[m])e.anw[m]='a'});
+  S.korr2026e=1;if(fehl)setTimeout(()=>toast(fehl+' Einträge aus den Anwesenheitslisten passten zu keinem Namen in der Mannschaft'),2400);if(SESS)setTimeout(save,0)}
 
 /* ================= Anwesenheit nachtragen: Tabelle Personen × Termine ================= */
 let anwTyp='uebung',anwSave=null,anwNotizModus=false;
@@ -1535,6 +1579,7 @@ function vJStart(){const y=new Date().getFullYear(),t=today(),act=jAktiv(),next=
    <div class="panel stat"><b>${ue.length?avg.toFixed(1).replace('.',','):'–'}</b>Ø Teilnehmer je Übung</div><button class="panel stat statbtn" data-act="tab" data-id="j_docs"><b>${JW().docs.length}</b>Dokumente</button></div>
   <div class="head"><h2>Nächste Termine</h2><button class="btn pri" data-act="new" data-typ="jugend">Übung planen</button></div>
   ${evList(next,'Keine kommenden Termine eingetragen.')}
+  ${gebBlock(act,'Jugendliche')}
   <div class="head"><h2>Übungsbeteiligung ${y}</h2></div>
   ${rows?`<div class="panel scroll"><table><thead><tr><th>Name</th><th>Übungen</th><th>Quote</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:'<p class="panel muted">Lege zuerst unter „Mitglieder“ die Jugendlichen an.</p>'}`}
 function vJPlan(){
@@ -1598,11 +1643,10 @@ function kBeteiligung(){const y=new Date().getFullYear(),l=[...KF().members].sor
   ${st.length&&rows?`<p class="muted small" style="margin:0">${st.length} Termin${st.length>1?'e':''} mit erfasster Teilnahme, im Schnitt ${avg.toFixed(1).replace('.',',')} Kinder je Termin.</p><div class="panel scroll"><table><thead><tr><th>Name</th><th>Termine</th><th>Quote</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:'<p class="panel muted">Noch keine Teilnahme erfasst. Öffne einen vergangenen Termin und kreuze an, wer da war.</p>'}`}
 function vKStart(){return kfKopf()+vKStart_()}
 function vKStart_(){const t=today(),kom=evs('kinder').filter(e=>evBis(e)>=t),l=[...KF().members].sort(nachSort),mon=new Date().getMonth();
-  const geb=l.filter(k=>k.geb&&toD(k.geb).getMonth()===mon);
-  return `<div class="stats"><button class="panel stat statbtn" data-act="tab" data-id="k_kinder"><b>${l.length}</b>Kinder</button><button class="panel stat statbtn" data-act="tab" data-id="k_term"><b>${kom.length}</b>kommende Termine</button><button class="panel stat statbtn" data-act="tab" data-id="k_docs"><b>${KF().docs.length}</b>Dokumente</button></div>
+    return `<div class="stats"><button class="panel stat statbtn" data-act="tab" data-id="k_kinder"><b>${l.length}</b>Kinder</button><button class="panel stat statbtn" data-act="tab" data-id="k_term"><b>${kom.length}</b>kommende Termine</button><button class="panel stat statbtn" data-act="tab" data-id="k_docs"><b>${KF().docs.length}</b>Dokumente</button></div>
   <div class="head"><h2>Nächste Termine</h2>${kalKnoepfe('kinder',y=>evs('kinder',y))}<button class="btn" data-act="tab" data-id="k_term">Alle anzeigen</button><button class="btn pri" data-act="new" data-typ="kinder">Termin planen</button></div>
   ${evList(kom.slice(0,5),'Keine kommenden Termine eingetragen.')}
-  ${geb.length?`<div class="head"><h2>Geburtstage im ${MON[mon]}</h2></div><ul class="list panel">${geb.sort((a,b)=>a.geb.slice(5).localeCompare(b.geb.slice(5))).map(k=>`<li><div class="row"><span class="dt"><b>${k.geb.slice(8)}</b><i>${MON[mon].slice(0,3)}</i></span><span class="txt"><strong>${esc(k.name)}</strong><span class="muted small">wird ${alter(k.geb)+(toD(k.geb).getDate()>new Date().getDate()?1:0)} Jahre</span></span></div></li>`).join('')}</ul>`:''}
+  ${gebBlock(l,'Kinder')}
   ${kBeteiligung()}
   <p class="muted small" style="margin:0">Diesen Bereich sehen nur die Leitung und die Betreuer/-innen der Kinderfeuerwehr sowie die Kommandant/-innen.</p>`}
 function vKTerm(){
@@ -1712,6 +1756,7 @@ document.addEventListener('click',async ev=>{if(!ev.target.closest('#areasw')&&$
   if(a==='kal'){const [art,j]=id.split(':');kalLaden(art,+j,kalListe(art,+j));return}
   if(anwAct(a,id,b)||jfAct(a,id,b)||kfAct(a,id,b))return;
   if(techAct(a,id,b))return;
+  if(a==='geballe'){gebAlle=!gebAlle;render();return}
   if(a==='tab'){tab=id;render();window.scrollTo(0,0)}
   else if(a==='logout'){logout()}
   else if(a==='tlogin')tabletDlg();
