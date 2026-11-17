@@ -455,7 +455,7 @@ function partMann(){const docs=S.docs.filter(d=>d.frei||S.events.some(e=>(e.docs
 /* Eigene Anwesenheit: „-“ heißt erfasst, aber ohne Eintrag für diese Person */
 function partPers(m){const hist=[];S.events.forEach(e=>{if(EIGENTYP.includes(e.typ))return;const s=(e.anw||{})[m.id];
     if(e.typ==='einsatz'?s==='a':Object.keys(e.anw||{}).length)hist.push({id:e.id,typ:e.typ,datum:e.datum,bis:e.bis||'',zeit:e.zeit||'',ende:e.ende||'',titel:e.typ==='einsatz'?'Einsatz':e.titel,gruppe:e.gruppe||'',zgr:e.zgr||[],s:s||'-'})});
-  return {id:m.id,geb:m.geb,rang:m.rang,ausb:m.ausb,fe:m.fe||{},fzl:fzSortiert().map(v=>({id:v.id,name:v.name})),pdocs:m.pdocs||[],fk:fkFor((m.pdocs||[]).map(d=>d.id)),hist,aufg:(S.aufgaben||[]).filter(a=>a.wer===m.name),
+  return {id:m.id,geb:m.geb,rang:m.rang,ausb:m.ausb,fe:m.fe||{},fzl:feFz().map(v=>({id:v.id,name:v.name})),pdocs:m.pdocs||[],fk:fkFor((m.pdocs||[]).map(d=>d.id)),hist,aufg:(S.aufgaben||[]).filter(a=>a.wer===m.name),
     fuehrung:istKdt(m)?S.events.filter(e=>e.typ==='fuehrung').map(e=>Object.assign({},e,{anw:{},anwNotiz:{},notiz:''})):[]}}
 function partJf(){const J=JW();return {members:J.members,docs:J.docs,sec:J.sec,gruppen:J.gruppen,events:S.events.filter(e=>e.typ==='jugend'),fk:fkFor(J.docs.map(d=>d.id))}}
 function partJfm(){const J=JW(),docs=J.docs.filter(d=>d.frei);
@@ -875,9 +875,11 @@ function icsText(){const y=new Date().getFullYear(),n=new Date(),st=n.getUTCFull
     L.push('BEGIN:VEVENT','UID:geb-'+m.id+'@ff-glosberg','DTSTAMP:'+st,'DTSTART;VALUE=DATE:'+y+gm+gd,'DTEND;VALUE=DATE:'+e.getFullYear()+pad(e.getMonth()+1)+pad(e.getDate()),'RRULE:FREQ=YEARLY','SUMMARY:'+t('Geburtstag '+m.name),'DESCRIPTION:'+t('Jahrgang '+gy+' · FF Glosberg'),'TRANSP:TRANSPARENT','BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+t('Geburtstag '+m.name),'TRIGGER:PT8H','END:VALARM','END:VEVENT')});
   L.push('END:VCALENDAR');return L.join('\r\n')+'\r\n'}
 /* ---------- Fahrberechtigung je Fahrzeug: Fahrerlaubnis (Führerscheinklasse) und Unterweisung (mit Datum) ---------- */
+const istAnh=v=>/anhänger/i.test((v.typ||'')+' '+(v.name||''));
+const feFz=()=>fzSortiert().filter(v=>!istAnh(v));
 const feVon=(m,v)=>(m.fe||{})[v.id]||{};
 const darfFahren=(m,v)=>{const f=feVon(m,v);return !!(f.fe&&f.unt)};
-function feBlock(m){const l=fzSortiert();if(!l.length)return '';
+function feBlock(m){const l=feFz();if(!l.length)return '';
   return `<div><h3>Fahrberechtigung</h3><p class="muted small" style="margin:4px 0 6px">Fahren darf, wer für das Fahrzeug die Fahrerlaubnis hat und unterwiesen wurde.</p>
   <div class="panel fetab">${l.map(v=>{const f=feVon(m,v);return `<div class="ferow" data-v="${v.id}"><strong>${esc(v.name)}</strong>
    <label class="chk"><input type="checkbox" class="fe_fe"${f.fe?' checked':''}>Fahrerlaubnis</label>
@@ -887,7 +889,7 @@ function readFe(m){const fe={};document.querySelectorAll('.ferow').forEach(r=>{c
   if(a||u||d)fe[r.dataset.v]={fe:a,unt:u||!!d,dat:d}});m.fe=fe}
 const feText=f=>f.fe&&f.unt?'Darf fahren':f.fe?'Unterweisung fehlt':f.unt?'Fahrerlaubnis fehlt':'';
 /* Fahrzeugansicht: wer darf fahren */
-function fahrerBlock(v){const l=aktiv().filter(m=>feVon(m,v).fe||feVon(m,v).unt).sort(nachSort);if(!l.length)return `<p class="muted small" style="margin:0">Noch keine Fahrberechtigungen eingetragen (bei der Person unter „Fahrberechtigung“).</p>`;
+function fahrerBlock(v){if(istAnh(v))return '';const l=aktiv().filter(m=>feVon(m,v).fe||feVon(m,v).unt).sort(nachSort);if(!l.length)return `<p class="muted small" style="margin:0">Noch keine Fahrberechtigungen eingetragen (bei der Person unter „Fahrberechtigung“).</p>`;
   const ok=l.filter(m=>darfFahren(m,v)),teil=l.filter(m=>!darfFahren(m,v));
   return `<div><h3 style="margin:6px 0">Fahrberechtigt (${ok.length})</h3>${ok.length?`<p style="margin:0">${ok.map(m=>esc(m.name)).join(' · ')}</p>`:'<p class="muted small" style="margin:0">Noch niemand mit Fahrerlaubnis und Unterweisung.</p>'}
   ${teil.length?`<p class="muted small" style="margin:6px 0 0">${teil.map(m=>esc(m.name)+' ('+feText(feVon(m,v))+')').join(' · ')}</p>`:''}</div>`}
@@ -1483,7 +1485,7 @@ function vPTerm(){const m=ich();if(!m)return vPWahl();const y=new Date().getFull
   ${war.length?`<ul class="list panel">${war.map(e=>pRow(e,m,true)).join('')}</ul>`:'<p class="panel muted">Für dieses Jahr ist noch keine Anwesenheit erfasst.</p>'}`}
 function vPAusb(){const m=ich();if(!m)return vPWahl();const a=m.ausb||[];
   const grp=(titel,l)=>`<div class="head"><h3>${titel}</h3></div>${l.length?`<ul class="list panel">${l.sort((x,y)=>(y.jahr||'').localeCompare(x.jahr||'')).map(x=>`<li><div class="row"><span class="dt"><b style="font-size:1.05rem">${esc(x.jahr||'–')}</b><i>${x.jahr?'Jahr':'ohne Jahr'}</i></span><span class="txt"><strong>${esc(x.n)}</strong></span></div></li>`).join('')}</ul>`:'<p class="panel muted">Noch nichts eingetragen.</p>'}`;
-  const fl=(fz().length?fzSortiert():m.fzl||[]).filter(v=>feText(feVon(m,v)));
+  const fl=(fz().length?feFz():m.fzl||[]).filter(v=>feText(feVon(m,v)));
   return `${fl.length?`<div class="head"><h2>Meine Fahrberechtigungen</h2></div><ul class="list panel">${fl.map(v=>{const f=feVon(m,v);return `<li><div class="row"><span class="txt"><strong>${esc(v.name)}</strong><span class="muted small">${feText(f)}${f.dat?' · unterwiesen am '+dmy(f.dat):''}</span></span></div></li>`}).join('')}</ul>`:''}
   <div class="head"><h2>Meine Lehrgänge</h2></div>
   ${grp('Landkreislehrgänge (KFV Kronach)',a.filter(x=>AUSB.includes(x.n)))}
