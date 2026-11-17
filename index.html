@@ -449,6 +449,8 @@ const VTYP=['vorstand','verein','fest'], EIGENTYP=['jugend','kinder',...VTYP]; /
 const vmEvents=()=>S.events.filter(e=>VTYP.includes(e.typ)&&!INTERN.includes(e.typ)&&e.frei).map(e=>Object.assign({},e,{anw:{},anwNotiz:{},notiz:''}));
 function partKdt(full){full.events=full.events.filter(e=>!EIGENTYP.includes(e.typ));full.aufgaben=(full.aufgaben||[]).filter(a=>a.area!=='verein');delete full.jugend;delete full.kinder;return full}
 function partTech(){return {geraete:S.geraete,maengel:S.maengel,fahrzeuge:S.fahrzeuge,rcinfo:S.rcinfo||{},lager:S.lager,aufgaben:(S.aufgaben||[]).filter(a=>a.area==='tech'),members:S.members.map(minMember),dash:calcDash(),fk:bildFk()}}
+function partGl(){const g=S.geraete.map(g=>({id:g.id,name:g.name,eigen:g.eigen,norm:g.norm,kat:g.kat,auf:g.auf,sub:g.sub,anz:g.anz,zustand:g.zustand,inv:g.inv,inhalt:g.inhalt||[],bilder:g.bilder||[],notiz:g.notiz||''}));
+  return {geraete:g,lager:S.lager,fk:fkFor(g.flatMap(x=>x.bilder))}}
 function partMann(){const docs=S.docs.filter(d=>d.frei||S.events.some(e=>(e.docs||[]).includes(d.id)&&!INTERN.includes(e.typ)&&e.frei&&((e.docvis||{})[d.id]||'nach')!=='kdt'));
   return {members:S.members.map(minMember),fk:fkFor(docs.map(d=>d.id)),docs,
   events:S.events.filter(e=>!INTERN.includes(e.typ)&&e.frei&&!VTYP.includes(e.typ)).map(e=>Object.assign({},e,{anw:{},anwNotiz:{},notiz:''}))}}
@@ -470,10 +472,10 @@ function save(){if(!SESS)return;const snap=JSON.stringify(S);return inQ(()=>doSa
 async function doSave(snap){const st=getStore(),K=SESS.keys,r=role();st.pending=st.pending||[];
   const darf=n=>!st.blobs[n]||geladen.has(n)||blobCache[n]!==undefined; /* Teile, die dieses Gerät nie gelesen hat, nicht überschreiben */
   const put=async(name,key,obj)=>{const j=JSON.stringify(obj);if(blobCache[name]===undefined&&st.blobs[name]){try{blobCache[name]=JSON.stringify(await dec(key,st.blobs[name]))}catch(e){blobCache[name]=''}}if(blobCache[name]===j&&st.blobs[name])return;st.blobs[name]=await enc(key,obj);blobCache[name]=j;if(!st.pending.includes(name))st.pending.push(name)};
-  if(r==='kdt'){await put('kdt',K.kdt,partKdt(JSON.parse(snap)));await put('tech',K.tech,partTech());await put('mann',K.mann,partMann());
+  if(r==='kdt'){await put('kdt',K.kdt,partKdt(JSON.parse(snap)));await put('tech',K.tech,partTech());await put('mann',K.mann,partMann());await put('gl',K.mann,partGl());
     for(const m of S.members){const pk=(S.sec.pkeys||{})[m.id];if(pk)await put('p_'+m.id,pk,partPers(m))}}
   else if(r==='gw'||r==='tablet'){const old=st.blobs.tech?await dec(K.tech,st.blobs.tech):{};
-    await put('tech',K.tech,Object.assign(old,{geraete:S.geraete,maengel:S.maengel,fahrzeuge:S.fahrzeuge,rcinfo:S.rcinfo||{},lager:S.lager,aufgaben:(S.aufgaben||[]).filter(a=>a.area==='tech'),fk:Object.assign({},old.fk,bildFk())}))}
+    await put('tech',K.tech,Object.assign(old,{geraete:S.geraete,maengel:S.maengel,fahrzeuge:S.fahrzeuge,rcinfo:S.rcinfo||{},lager:S.lager,aufgaben:(S.aufgaben||[]).filter(a=>a.area==='tech'),fk:Object.assign({},old.fk,bildFk())}));if(K.mann)await put('gl',K.mann,partGl())}
   if(K.jf&&K.jfm&&S.jugend&&darf('jf')){await put('jf',K.jf,partJf());await put('jfm',K.jfm,partJfm());
     for(const m of JW().members){const pk=(JW().sec.pkeys||{})[m.id];if(pk)await put('p_'+m.id,pk,partJPers(m))}}
   if(K.kf&&S.kinder&&darf('kf'))await put('kf',K.kf,partKf());
@@ -489,7 +491,7 @@ async function openData(sess){const st=getStore(),B=st.blobs;blobCache={};gelade
   if(sess.role==='kdt'&&B.kdt&&sess.keys.kdt){const k0=await get('kdt',sess.keys.kdt);const ks=k0&&k0.sec&&k0.sec.keys||{};const o={};
     [...RKEYS.kdt,...(sess.x||[]).flatMap(f=>XKEYS[f])].forEach(k=>{if(ks[k])o[k]=ks[k]});sess.keys=Object.assign({},sess.keys,o)}
   const K=sess.keys;
-  const tech=await get('tech',K.tech),mann=await get('mann',K.mann),vm=sess.role==='kdt'?null:await get('vm',K.mann),jf=await get('jf',K.jf),jfm=jf?null:await get('jfm',K.jfm),ver=await get('verein',K.verein),kf=await get('kf',K.kf),pers=sess.p?await get('p_'+sess.mid,sess.p):null;
+  const tech=await get('tech',K.tech),mann=await get('mann',K.mann),vm=sess.role==='kdt'?null:await get('vm',K.mann),jf=await get('jf',K.jf),jfm=jf?null:await get('jfm',K.jfm),ver=await get('verein',K.verein),kf=await get('kf',K.kf),pers=sess.p?await get('p_'+sess.mid,sess.p):null,gl=tech?null:await get('gl',K.mann);
   const need={kdt:'kdt',jugend:'jfm'}[sess.role];
   if(need?!B[need]:!B.mann&&!B.tech)throw new Error('Noch keine Daten auf diesem Gerät. Bitte mit Internetverbindung erneut anmelden.');
   const leer=()=>({members:[],events:[],docs:[],ordner:[],geraete:[],maengel:[],fahrzeuge:[],rcinfo:{},lager:JSON.parse(JSON.stringify(LAGER_STD)),aufgaben:[],fk:{},sample:false,aktivImport:1,bspWeg:1});
@@ -510,7 +512,7 @@ async function openData(sess){const st=getStore(),B=st.blobs;blobCache={};gelade
       S.events.forEach(e=>{const s=(pers.hist||{})[e.id];if(s)e.anw={[sess.mid]:s}})}}
   else{const base=mann||{members:[],events:[],docs:[]};
     S=Object.assign(leer(),{members:(tech||base).members.map(m=>Object.assign({geb:'',rang:'',ausb:[]},m)),events:base.events,docs:base.docs||[],
-      geraete:tech?tech.geraete:[],maengel:tech?tech.maengel:[],fahrzeuge:tech?tech.fahrzeuge:[],rcinfo:tech&&tech.rcinfo||{},lager:tech?tech.lager:JSON.parse(JSON.stringify(LAGER_STD)),fk:Object.assign({},mann&&mann.fk,tech&&tech.fk),aufgaben:tech?[...tech.aufgaben]:[],dash:tech?tech.dash:null});
+      geraete:tech?tech.geraete:gl?gl.geraete:[],maengel:tech?tech.maengel:[],fahrzeuge:tech?tech.fahrzeuge:[],rcinfo:tech&&tech.rcinfo||{},lager:tech?tech.lager:gl&&gl.lager?gl.lager:JSON.parse(JSON.stringify(LAGER_STD)),fk:Object.assign({},mann&&mann.fk,gl&&gl.fk,tech&&tech.fk),aufgaben:tech?[...tech.aufgaben]:[],dash:tech?tech.dash:null});
     LAGER=S.lager;
     if(pers){const me=S.members.find(m=>m.id===sess.mid);if(me)Object.assign(me,{geb:pers.geb,rang:pers.rang,ausb:pers.ausb||[],fe:pers.fe||me.fe||{},fzl:pers.fzl||[],pdocs:pers.pdocs||[]});S.fk=Object.assign(S.fk||{},pers.fk);
       (pers.fuehrung||[]).forEach(e=>S.events.push(e));
@@ -715,7 +717,7 @@ function m3(b,l,r){if(J(l)===J(r))return l;if(J(l)===J(b))return r;if(J(r)===J(b
 function teilKey(n){const K=SESS.keys;
   /* Kommandanten laden den Teil der Kinderfeuerwehr nur verschlüsselt mit, damit er beim Schlüsselwechsel neu verschlüsselt werden kann */
   if(n==='kf'&&!K.kf&&SESS.role==='kdt'&&S&&S.sec)return S.sec.keys.kf||'';
-  if(ALLKEYS.includes(n))return K[n]||'';if(n==='vm')return K.mann||'';
+  if(ALLKEYS.includes(n))return K[n]||'';if(n==='vm'||n==='gl')return K.mann||'';
   if(n.startsWith('p_')){const mid=n.slice(2);if(mid===SESS.mid)return SESS.p||'';if(!S)return '';
     return (SESS.role==='kdt'&&S.sec?(S.sec.pkeys||{})[mid]:'')||(K.jf&&S.jugend&&S.jugend.sec?(S.jugend.sec.pkeys||{})[mid]:'')||''}return ''}
 
@@ -968,7 +970,7 @@ function render(){
   if(!TABS[area].some(t=>t[0]===tab))tab=TABS[area][0][0];
   {const N={ich:'Persönlich',kdt:'Kommandanten',tech:'Technik',jf:'Jugendfeuerwehr',kf:'Kinderfeuerwehr',verein:'Vereinsführung',tablet:'Fahrzeug-Tablet',jugend:'Jugendfeuerwehr'};document.body.classList.toggle('ro',RO());$('#areaLbl').textContent=N[area];$('#areaMenu').hidden=true;$('#areaBtn').setAttribute('aria-expanded','false');$('#areaBtn').disabled=erlaubt().length<2;$('#areaMenu').innerHTML=erlaubt().filter(k=>k!==area&&N[k]).map(k=>`<button data-act="area" data-id="${k}">${N[k]}</button>`).join('')}
   $('#tabsIn').innerHTML=TABS[area].map(t=>`<button data-act="tab" data-id="${t[0]}" aria-current="${t[0]===tab}">${t[1]}${/aufg$/.test(t[0])&&auOffen(area).length?` <span class="badge">${auOffen(area).length}</span>`:''}</button>`).join('');
-  $('#view').innerHTML={start:vStart,plan:vPlan,anw:vAnw,uebung:()=>vEvents('uebung'),einsatz:()=>vEvents('einsatz'),team:vTeam,docs:vDocs,p_start:vPStart,p_term:vPTerm,p_ausb:vPAusb,p_docs:vPDocs,aufg:()=>vAufg('kdt'),t_aufg:()=>vAufg('tech'),f_dash:vDash,k_start:vKStart,k_term:vKTerm,k_kinder:vKKinder,k_docs:vKDocs,j_start:vJStart,j_plan:vJPlan,j_mitgl:vJMitgl,j_docs:vJDocs,y_start:vYStart,y_term:vYTerm,y_docs:vYDocs,v_start:vVStart,v_term:vVTerm,v_aufg:()=>vAufg('verein'),t_start:vTStart,t_fahrz:vFahrz,t_geraete:vGeraete,t_pruef:vPruef,t_maengel:vMaengel}[tab]();
+  $('#view').innerHTML={start:vStart,plan:vPlan,anw:vAnw,uebung:()=>vEvents('uebung'),einsatz:()=>vEvents('einsatz'),team:vTeam,docs:vDocs,p_start:vPStart,p_term:vPTerm,p_ausb:vPAusb,p_docs:vPDocs,p_geraete:vPGeraete,aufg:()=>vAufg('kdt'),t_aufg:()=>vAufg('tech'),f_dash:vDash,k_start:vKStart,k_term:vKTerm,k_kinder:vKKinder,k_docs:vKDocs,j_start:vJStart,j_plan:vJPlan,j_mitgl:vJMitgl,j_docs:vJDocs,y_start:vYStart,y_term:vYTerm,y_docs:vYDocs,v_start:vVStart,v_term:vVTerm,v_aufg:()=>vAufg('verein'),t_start:vTStart,t_fahrz:vFahrz,t_geraete:vGeraete,t_pruef:vPruef,t_maengel:vMaengel}[tab]();
 }
 
 /* ---------- Dialoge ---------- */
@@ -1144,7 +1146,7 @@ const TABS={kf:[['k_start','Übersicht'],['k_term','Termine'],['k_kinder','Kinde
   verein:[['v_start','Übersicht'],['v_term','Termine'],['v_aufg','Offene Punkte']],
   jugend:[['y_start','Übersicht'],['y_term','Termine'],['y_docs','Unterlagen']],
   tablet:[['f_dash','Dashboard'],['t_fahrz','Fahrzeuge & Rollcontainer'],['t_geraete','Geräte'],['t_pruef','Prüfungen'],['t_maengel','Mängel']],
-  ich:[['p_start','Übersicht'],['p_term','Termine'],['p_ausb','Lehrgänge'],['p_docs','Unterlagen']],
+  ich:[['p_start','Übersicht'],['p_term','Termine'],['p_ausb','Lehrgänge'],['p_geraete','Geräte'],['p_docs','Unterlagen']],
   kdt:[['start','Übersicht'],['plan','Jahresplan'],['uebung','Übungen'],['anw','Anwesenheit'],['einsatz','Einsätze'],['team','Mannschaft'],['docs','Dokumente'],['aufg','Offene Aufgaben']],
   tech:[['t_start','Übersicht'],['t_fahrz','Fahrzeuge & Rollcontainer'],['t_geraete','Geräte'],['t_pruef','Prüfungen'],['t_maengel','Mängel'],['t_aufg','Offene Aufgaben']]};
 /* Gerätebezeichnungen in Anlehnung an die genormte feuerwehrtechnische Beladung (DIN 14530, TSF/TSF-L) */
@@ -1262,6 +1264,17 @@ function vGeraete(){const subs=LAGER[gf.auf]||[];
    ${sel('gf_zust','Zustand: alle',Object.keys(ZUST).map(k=>[k,ZUST[k]]),gf.zust)}
    ${sel('gf_pruef','Prüfstand: alle',[['faellig','Prüfung fällig oder überfällig'],['ohne','ohne hinterlegte Prüfung'],['mangel','mit offenem Mangel']],gf.pruef)}</div>
   <div id="gres" class="gres">${gResults()}</div>`}
+/* Persönlich › Geräte: dieselbe Suche wie in der Technik, nur zum Lesen */
+function vPGeraete(){const subs=LAGER[gf.auf]||[];
+  const sel=(id,first,opts,cur)=>`<select id="${id}" aria-label="${first}"><option value="">${first}</option>${opts.map(o=>`<option value="${esc(o[0])}"${o[0]===cur?' selected':''}>${esc(o[1])}</option>`).join('')}</select>`;
+  return `<div class="head"><h2>Geräte</h2></div>
+  <p class="muted small" style="margin:0">Hier findest du, was wir haben und wo es verlastet ist. Mängel meldest du bitte am Fahrzeug-Tablet oder beim Gerätewart.</p>
+  <div class="filters"><input id="gf_q" type="search" value="${esc(gf.q)}" placeholder="Suchen, z. B. C Schläuche" aria-label="Geräte suchen">
+   ${sel('gf_kat','Kategorie: alle',KAT.filter(k=>S.geraete.some(g=>g.kat===k)).map(k=>[k,k]),gf.kat)}
+   ${sel('gf_auf','Verlastet im: alle',lagerTops().map(o=>[o,o]),gf.auf)}
+   ${subs.length?sel('gf_sub','Verlastungsort: alle',subs.map(o=>[o,o]),gf.sub):`<select id="gf_sub" aria-label="Verlastungsort" disabled><option>${gf.auf?'kein Verlastungsort hinterlegt':'Verlastungsort: erst „Verlastet im“ wählen'}</option></select>`}
+   ${sel('gf_zust','Zustand: alle',Object.keys(ZUST).map(k=>[k,ZUST[k]]),gf.zust)}</div>
+  <div id="gres" class="gres">${S.geraete.length?gResults():'<p class="panel muted">Die Geräteliste ist noch nicht verfügbar. Sie erscheint, sobald ein Kommandant oder der Gerätewart die App einmal mit der neuen Version geöffnet hat.</p>'}</div>`}
 function vPruef(){const c=checks();return `<div class="head"><h2>Prüfungen</h2></div>
   <p class="muted small" style="margin:0">Sortiert nach Fälligkeit. „Heute geprüft“ trägt das heutige Datum ein und rechnet die nächste Frist aus.</p>
   ${c.length?`<ul class="list panel">${c.map(checkRow).join('')}</ul>`:'<p class="panel muted">Noch keine Prüfungen hinterlegt. Du legst sie beim jeweiligen Gerät an.</p>'}`}
@@ -1789,7 +1802,7 @@ function geraetView(g){const ps=g.pruef||[];
   ${(g.bilder||[]).length?`<div class="pics">${g.bilder.map(id=>`<span class="pic"><img data-img="${id}" data-act="picview" data-id="${id}" alt="Bild ansehen"></span>`).join('')}</div>`:''}
   ${ps.length?`<div><h3>Prüfungen</h3><ul class="list">${ps.map(p=>{const s=pst(p);return `<li><div class="row"><span class="txt"><strong>${esc(p.name)}</strong><span class="muted small">alle ${+p.intervall||12} Monate${p.letzte?' · zuletzt '+dmy(p.letzte):''}</span></span><span class="tag ${s[0]}">${due(p)?'nächste '+dmy(due(p))+' · ':''}${s[1]}</span></div></li>`}).join('')}</ul></div>`:''}
   ${g.notiz?`<p class="muted small" style="margin:0">${esc(g.notiz)}</p>`:''}
-  <div class="actions"><button class="btn" data-act="xnew" data-id="${g.id}">Mangel melden</button><span class="sp"></span><button class="btn pri" data-act="close">Schließen</button></div>`)}
+  <div class="actions">${area==='ich'?'':`<button class="btn" data-act="xnew" data-id="${g.id}">Mangel melden</button>`}<span class="sp"></span><button class="btn pri" data-act="close">Schließen</button></div>`)}
 function fzView(v){const s=tst(v.tuev);
   openDlg(`<h2>${esc(v.name)}</h2><div class="muted">${esc([v.typ,v.kennz].filter(Boolean).join(' · '))}</div>
   <div class="tags"><span class="tag ${s[0]}">TÜV ${v.tuev?'bis '+mmjj(v.tuev)+' · ':''}${s[1]}</span>${v.uvv?`<span class="tag">UVV-Prüfung bis ${mmjj(v.uvv)}</span>`:''}${v.service?`<span class="tag">Kundendienst bis ${mmjj(v.service)}</span>`:''}</div>
@@ -1810,6 +1823,7 @@ function armed(b){if(b.dataset.armed)return true;const o=b.textContent;b.dataset
 const done=msg=>{save();render();if(msg)toast(msg)};
 
 document.addEventListener('click',async ev=>{if(!ev.target.closest('#areasw')&&$('#areaMenu')&&!$('#areaMenu').hidden){$('#areaMenu').hidden=true;$('#areaBtn').setAttribute('aria-expanded','false')}const b=ev.target.closest('[data-act]');if(!b)return;const a=b.dataset.act,id=b.dataset.id;
+  if(area==='ich'&&a==='gedit'){const g=S.geraete.find(x=>x.id===id);if(g)geraetView(g);return}
   if(rcAct(a,id))return;
   if(roAct(a,id))return;
   if(a==='kal'){const [art,j]=id.split(':');kalLaden(art,+j,kalListe(art,+j));return}
