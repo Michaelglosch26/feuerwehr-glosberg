@@ -505,6 +505,7 @@ async function openData(sess){const st=getStore(),B=st.blobs;blobCache={};gelade
     if(!S.korr2026c)await korr2026c();
     if(!S.korr2026d)await korr2026d();
     if(!S.korr2026e)await korr2026e();
+    if(!zugMig.geplant&&getStore().users.some(u=>!u.zkk&&u.ct)){zugMig.geplant=true;setTimeout(()=>inQ(zugMig).catch(e=>console.error(e)).finally(()=>{zugMig.geplant=false}),4000)} /* später und in der Warteschlange, damit kein Abgleich dazwischenfunkt */
     {const t=S.events.find(e=>e.id==='k26d_thl');if(t&&!t.ort){t.ort='Gundelsdorf';t.eigen=false;if(SESS)setTimeout(save,0)}}
     sess.keys=kdtKeys(sess.x)}
   else if(sess.role==='jugend'){S=leer();S.events=jfm.events||[];S.fk=Object.assign({},jfm.fk);S.jugend={members:jfm.members||[],docs:jfm.docs||[],sec:{pkeys:{}}};
@@ -537,7 +538,9 @@ function logout(){clearTimeout(idleT);clearTimeout(warnT);BASE=null;syncAnzeige(
 async function tryLogin(name,pw){await zugangLaden();const st=getStore(),h=await nameHash(name),u=st.users.find(x=>x.h===h);
   if(!u)return {err:'Diesen Namen gibt es nicht. Bitte Vor- und Nachnamen so eingeben, wie du sie bekommen hast.'};
   if(!u.ct)return {err:'Dieser Zugang ist gesperrt. Bitte wende dich an einen Kommandanten oder Jugendwart.'};
-  try{const b=await unwrap(pw,u);return {sess:{uid:u.id,mid:b.mid,role:b.role,keys:b.keys,x:b.x||[],p:b.p||'',name:b.name||name,gh:(b.gh||{}).d||'',ghz:(b.gh||{}).z||'',wiv:u.iv}}}catch(e){return {err:'Das Passwort stimmt nicht.'}}}
+  let b;try{b=await unwrap(pw,u)}catch(e){return {err:'Das Passwort stimmt nicht.'}}
+  try{if(b.zk)b=await dec(b.zk,u.b)}catch(e){return {err:'Der Zugang ist beschädigt. Bitte bei einem Kommandanten melden.'}}
+  return {sess:{uid:u.id,mid:b.mid,role:b.role,keys:b.keys,x:b.x||[],p:b.p||'',name:b.name||name,gh:(b.gh||{}).d||'',ghz:(b.gh||{}).z||'',wiv:u.bv||u.iv}}}
 
 /* --- Ersteinrichtung --- */
 async function einrichten(mid,fort,gh,cfg){const keys={};for(const k of ALLKEYS)keys[k]=await newKey();
@@ -550,32 +553,73 @@ async function einrichten(mid,fort,gh,cfg){const keys={};for(const k of ALLKEYS)
   putStore(st);SESS={uid:'',mid,role:'kdt',keys,x:[],p:S.sec.pkeys[mid],gh:''};await doSave(JSON.stringify(S));
   const r=await tryLogin(S.members.find(m=>m.id===mid).name,eigenes);return {list,sess:r.sess}}
 /* Legt einen Zugang an oder verpackt ihn neu. Kommandanten nehmen alle Schlüssel, Jugendwarte ihre eigenen (nur für Jugendliche). */
-async function neuerZugang(st,mid,name,rolle,pw){const kdtSicht=!SESS||SESS.role==='kdt',K=kdtSicht?S.sec.keys:SESS.keys,jung=rolle==='jugend',pk=jung?JW().sec.pkeys:S.sec.pkeys;
+async function neuerZugang(st,mid,name,rolle,pw,alt){const kdtSicht=!SESS||SESS.role==='kdt',K=kdtSicht?S.sec.keys:SESS.keys,jung=rolle==='jugend',pk=jung?JW().sec.pkeys:S.sec.pkeys;
   if(mid!=='tablet'&&!pk[mid])pk[mid]=await newKey();
-  pw=pw||genPw();const m=jung?null:S.members.find(x=>x.id===mid),x=m?xFlags(m).filter(f=>rolle!=='kdt'||f==='kf'):[];
+  const behalten=!pw&&alt&&alt.zk&&alt.wrap&&alt.wrap.ct;if(!behalten)pw=pw||genPw();const m=jung?null:S.members.find(x=>x.id===mid),x=m?xFlags(m).filter(f=>rolle!=='kdt'||f==='kf'):[];
   const ks={};[...RKEYS[rolle],...x.flatMap(f=>XKEYS[f])].forEach(k=>{if(K[k])ks[k]=K[k]});
   const G=kdtSicht?S.sec.gh||{}:{d:SESS.gh,z:SESS.ghz},nk=jung?'jf':'kdt';
-  const w=await wrap(pw,{mid,role:rolle,name,keys:ks,x,p:mid==='tablet'?'':pk[mid],gh:{d:G.d||'',z:rolle==='kdt'||x.includes('jf')?G.z||'':''}});st.usersPending=true;
+  const zk=(alt&&alt.zk)||await newKey(),inhalt={mid,role:rolle,name,keys:ks,x,p:mid==='tablet'?'':pk[mid],gh:{d:G.d||'',z:rolle==='kdt'||x.includes('jf')?G.z||'':''}};
+  const w=behalten?{salt:alt.wrap.salt,iv:alt.wrap.iv,ct:alt.wrap.ct}:await wrap(pw,{zk});st.usersPending=true;
   let u=st.users.find(y=>y.mid===mid);if(!u){u={id:uid(),mid};st.users.push(u)}
-  Object.assign(u,{h:await nameHash(name),role:rolle,gesperrt:false,nk},w,{name:await enc(K[nk],name),pw:await enc(K[nk],pw)});return {u,pw}}
+  Object.assign(u,{h:await nameHash(name),role:rolle,gesperrt:false,nk},w,{b:await enc(zk,inhalt),bv:(alt&&alt.bv)||uid(),zkk:await enc(K[nk],zk),selbst:!!behalten,name:await enc(K[nk],name),pw:await enc(K[nk],behalten?'':pw)});return {u,pw:behalten?'':pw}}
+async function zugZk(u){const k=SESS.keys[u.nk||'kdt'];if(!k||!u.zkk)return '';try{return await dec(k,u.zkk)}catch(e){return ''}}
+const zugAlt=async u=>({zk:await zugZk(u),wrap:{salt:u.salt,iv:u.iv,ct:u.ct}});
 
+/* ---------- Eigenes Passwort ändern ----------
+   Die Person verpackt ihren Zugangsschlüssel auf dem eigenen Gerät mit dem neuen Passwort und legt das Ergebnis als Antrag ab.
+   Wer die Zugangsliste schreiben darf (Kommandanten, Jugendwarte), übernimmt den Antrag beim nächsten Abgleich. */
+async function pwAntraege(st){const K=SESS.keys;let n=0;
+  for(const name of Object.keys(st.blobs||{})){const m=name.match(/^pw([mj])_(.+)$/);if(!m)continue;const k=m[1]==='m'?K.mann:K.jfm;if(!k)continue;
+    let a=null;try{a=await dec(k,st.blobs[name])}catch(e){continue}
+    const u=st.users.find(x=>x.id===a.uid),nk=u&&K[u.nk||'kdt'];
+    if(u&&nk&&u.ct&&u.iv===a.alt&&a.w&&a.w.ct){Object.assign(u,{salt:a.w.salt,iv:a.w.iv,ct:a.w.ct,selbst:true,pw:await enc(nk,'')});st.usersPending=true;n++}
+    if(!u||u.iv!==a.alt){delete st.blobs[name];st.pending=st.pending||[];if(!st.pending.includes(name))st.pending.push(name)}}
+  if(n)putStore(st,true)}
+let pwPend='';try{pwPend=localStorage.getItem('ffg-pwneu')||''}catch(e){}
+function pwDlg(){openDlg(`<h2>Passwort ändern</h2><p class="muted small" style="margin:0">Das neue Passwort gilt auf allen Geräten, sobald ein Kommandant die App das nächste Mal öffnet. Bis dahin gilt dein bisheriges Passwort. Kommandanten können ein selbst gewähltes Passwort nicht einsehen.</p>
+  <div class="f"><label class="wide">Bisheriges Passwort<input type="password" id="pw_a" autocomplete="current-password"></label>
+  <label>Neues Passwort<input type="password" id="pw_n" autocomplete="new-password" minlength="8"></label><label>Neues Passwort wiederholen<input type="password" id="pw_w" autocomplete="new-password"></label></div>
+  <p class="muted small" style="margin:0">Mindestens 8 Zeichen. Am besten ein Passwort, das du nirgends sonst verwendest.</p>
+  <div class="err" id="formErr"></div>
+  <div class="actions"><span class="sp"></span><button class="btn" data-act="close">Abbrechen</button><button class="btn pri" data-act="pwset">Passwort ändern</button></div>`)}
+async function pwSetzen(){const e=$('#formErr'),a=$('#pw_a').value,n=$('#pw_n').value,w=$('#pw_w').value,btn=$('[data-act=pwset]');e.textContent='';
+  if(n.length<8){e.textContent='Das neue Passwort muss mindestens 8 Zeichen haben.';return}if(n!==w){e.textContent='Die beiden neuen Passwörter stimmen nicht überein.';return}if(n===a){e.textContent='Das neue Passwort ist dasselbe wie das bisherige.';return}
+  btn.disabled=true;btn.textContent='Prüfe …';
+  try{await zugangLaden()}catch(x){}
+  const st=getStore(),u=st.users.find(x=>x.id===SESS.uid);if(!u||!u.ct){e.textContent='Dein Zugang wurde nicht gefunden. Bitte einmal ab- und wieder anmelden.';btn.disabled=false;btn.textContent='Passwort ändern';return}
+  let b;try{b=await unwrap(a,u)}catch(x){e.textContent='Das bisherige Passwort stimmt nicht.';btn.disabled=false;btn.textContent='Passwort ändern';return}
+  if(!b.zk){e.textContent='Die Passwortänderung ist bald möglich: Ein Kommandant muss die neue App-Version einmal öffnen. Bitte später noch einmal versuchen.';btn.disabled=false;btn.textContent='Passwort ändern';return}
+  const neu=await wrap(n,{zk:b.zk}),key=SESS.keys.mann||SESS.keys.jfm,nm=(SESS.keys.mann?'pwm_':'pwj_')+u.id;
+  st.blobs[nm]=await enc(key,{uid:u.id,alt:u.iv,w:neu,zeit:Date.now()});st.pending=st.pending||[];if(!st.pending.includes(nm))st.pending.push(nm);putStore(st,true);
+  pwPend=neu.iv;try{localStorage.setItem('ffg-pwneu',pwPend)}catch(x){}
+  $('#dlg').close();render();await sync();toast('Neues Passwort gespeichert. Es gilt, sobald ein Kommandant die App öffnet.')}
+function pwHinweis(){if(!pwPend||!SESS||!SESS.uid)return '';const u=getStore().users.find(x=>x.id===SESS.uid);
+  if(u&&u.iv===pwPend){pwPend='';try{localStorage.removeItem('ffg-pwneu')}catch(e){}return '<div class="note" style="margin-top:12px"><span>Dein neues Passwort ist jetzt aktiv.</span></div>'}
+  return '<div class="note" style="margin-top:12px"><span>Dein neues Passwort wird übernommen, sobald ein Kommandant die App das nächste Mal öffnet. Bis dahin meldest du dich mit dem bisherigen an.</span></div>'}
+const pwKnopf=()=>SESS&&SESS.uid&&SESS.mid!=='tablet'&&!BASE?`<div class="actions" style="justify-content:flex-start;margin-top:14px"><button class="btn sm" data-act="pwdlg">Passwort ändern</button></div>${pwHinweis()}`:'';
 /* --- Zugangsverwaltung --- */
+/* Bestehende Zugänge einmalig auf zwei Schichten umstellen; Passwort und Version bleiben gleich */
+async function zugMig(){if(!SESS||SESS.role!=='kdt'||!S||!S.sec)return 0;const st=getStore();let n=0;
+  for(const u of [...st.users]){if(u.zkk||!u.ct||u.gesperrt)continue;const pw=await zugPw(u),name=personName(u.mid);if(!pw||!name)continue;
+    await neuerZugang(st,u.mid,name,u.role,pw,{bv:u.bv||u.iv});n++}
+  if(n)putStore(st);return n}
 async function zugPw(u){const k=SESS.keys[u.nk||'kdt'];if(!k)return '';try{return await dec(k,u.pw)}catch(e){return ''}}
 const personName=mid=>mid==='tablet'?'Fahrzeug-Tablet':((S.members.find(x=>x.id===mid)||JW().members.find(x=>x.id===mid)||{}).name||'');
 const zugSetzen=(mid,o)=>inQ(()=>zugSetzen_(mid,o));
 async function zugSetzen_(mid,{rolle,neuPw,sperren}){const st=getStore(),u=st.users.find(x=>x.mid===mid),name=personName(mid),r=rolle||(u?u.role:'mann');
   if(sperren===true){Object.assign(u,{ct:null,iv:null,salt:null,gesperrt:true});st.usersPending=true;putStore(st);if(SESS.gh)syncPlanen(500);return}
+  if(!neuPw&&u&&u.selbst&&u.zkk){await neuerZugang(st,mid,name,r,null,await zugAlt(u));putStore(st);save();return}
   const pw=neuPw?genPw():(u?await zugPw(u):genPw());await neuerZugang(st,mid,name,r,pw);putStore(st);save()}
 const zugEntfernen=mid=>inQ(async()=>{const st=getStore();st.users=st.users.filter(u=>u.mid!==mid);st.usersPending=true;delete st.blobs['p_'+mid];st.pending=st.pending||[];if(!st.pending.includes('p_'+mid))st.pending.push('p_'+mid);if(S.sec)delete S.sec.pkeys[mid];delete JW().sec.pkeys[mid];putStore(st)});
 /* Neue Schlüssel für alle (oder nur neu verpacken); nötig, wenn jemand ausscheidet oder ein Gerät verloren geht */
 const schluesselErneuern=(fort,neueKeys=true)=>inQ(()=>schluesselErneuern_(fort,neueKeys));
 async function schluesselErneuern_(fort,neueKeys){const st=getStore(),pws={};let kfAlt=null;try{if(st.blobs.kf&&S.sec.keys.kf)kfAlt=await dec(S.sec.keys.kf,st.blobs.kf)}catch(e){}
-  for(const u of st.users)pws[u.mid]=await zugPw(u);
+  const alts={};for(const u of st.users){pws[u.mid]=await zugPw(u);if(u.selbst&&u.zkk)alts[u.mid]=await zugAlt(u)}
   if(neueKeys){S.sec.keys={};for(const k of ALLKEYS)S.sec.keys[k]=await newKey();S.sec.pkeys={};JW().sec.pkeys={}}
   const me=S.members.find(m=>m.id===SESS.mid);if(me)SESS.x=xFlags(me).filter(f=>f==='kf');SESS.keys=kdtKeys(SESS.x);
   const neu=Object.assign({},st,{users:[],blobs:neueKeys?{}:st.blobs,pending:neueKeys?Object.keys(st.blobs):st.pending||[]});let i=0,neuAngelegt=0;
-  for(const u of st.users){fort&&fort(++i,st.users.length);const name=personName(u.mid);if(!name||!pws[u.mid]){neu.users.push(u);continue}
-    await neuerZugang(neu,u.mid,name,u.role,pws[u.mid]);
+  for(const u of st.users){fort&&fort(++i,st.users.length);const name=personName(u.mid);if(!name||!(pws[u.mid]||alts[u.mid])){neu.users.push(u);continue}
+    await neuerZugang(neu,u.mid,name,u.role,alts[u.mid]?null:pws[u.mid],alts[u.mid]);
     if(u.gesperrt){const x=neu.users.find(y=>y.mid===u.mid);Object.assign(x,{ct:null,iv:null,salt:null,gesperrt:true})}}
   if(neueKeys&&kfAlt){neu.blobs.kf=await enc(S.sec.keys.kf,kfAlt)}
   for(const m of S.members)if(zugBerechtigt(m)&&!neu.users.some(u=>u.mid===m.id)){await neuerZugang(neu,m.id,m.name,rolleVon(m));neuAngelegt++}
@@ -620,7 +664,7 @@ function vSetup(){const k=S.members.filter(m=>m.aktiv&&/kommandant/i.test(m.funk
   <p class="muted small" style="margin:0">Danach siehst du alle Passwörter einmal als Liste. Später findest du sie jederzeit unter Kommandanten › Mannschaft › Zugänge.</p></div>`}
 async function zugListe(einmal,nurJugend){const st=getStore(),rows=[],alle=role()==='kdt'&&!nurJugend;
   for(const u of st.users){if(!alle&&u.role!=='jugend')continue;const k=SESS.keys[u.nk||'kdt'];if(!k)continue;let name='';try{name=await dec(k,u.name)}catch(e){continue}
-    const m=S.members.find(x=>x.id===u.mid),x=m?xFlags(m).filter(f=>u.role!=='kdt'||f==='kf'):[];rows.push({mid:u.mid,name,role:u.role,extra:x.map(f=>BEREICH[f]).join(' · '),pw:await zugPw(u),gesperrt:u.gesperrt})}
+    const m=S.members.find(x=>x.id===u.mid),x=m?xFlags(m).filter(f=>u.role!=='kdt'||f==='kf'):[];rows.push({mid:u.mid,name,role:u.role,extra:x.map(f=>BEREICH[f]).join(' · '),pw:u.selbst?'selbst geändert':await zugPw(u),gesperrt:u.gesperrt})}
   rows.sort((a,b)=>(a.mid==='tablet')-(b.mid==='tablet')||Object.keys(ROLLEN).indexOf(a.role)-Object.keys(ROLLEN).indexOf(b.role)||nachKey(S.members.find(m=>m.id===a.mid)||{name:a.name}).localeCompare(nachKey(S.members.find(m=>m.id===b.mid)||{name:b.name}),'de'));
   openDlg(`<h2>${alle?'Zugänge':'Zugänge der Jugendlichen'}</h2>
   ${einmal?'<div class="note"><span><strong>Einrichtung abgeschlossen.</strong> Gib jedem sein Passwort persönlich weiter, nicht in Gruppenchats. Dein eigenes Passwort steht ganz oben bei den Kommandanten.</span></div>':''}
@@ -639,7 +683,7 @@ async function zugListe(einmal,nurJugend){const st=getStore(),rows=[],alle=role(
 async function zugangBlock(m,jung){const st=getStore(),u=st.users.find(x=>x.mid===m.id),x=jung?[]:xFlags(m);
   const zus=x.length?`<p class="muted small" style="margin:0">Zusätzliche Bereiche: ${x.map(f=>({jf:'Jugendfeuerwehr',verein:'Vereinsführung',kf:'Kinderfeuerwehr'})[f]).join(', ')} (ergibt sich aus den Funktionen).</p>`:'';
   if(!u)return `<div class="lblock"><h3>Zugang zur App</h3><p class="muted small" style="margin:0">${jung?(m.aktiv!==false?'Noch kein Zugang. Er wird beim Speichern angelegt.':'Kein Zugang, weil der Jugendliche nicht aktiv ist.'):zugBerechtigt(m)?'Noch kein Zugang. Er wird beim Speichern angelegt.':'Kein Zugang, weil die Person weder aktiv ist noch zur Vorstandschaft gehört.'}</p>${zus}</div>`;
-  const pw=await zugPw(u);
+  const pw=u.selbst?'selbst geändert':await zugPw(u);
   return `<div class="lblock"><h3>Zugang zur App</h3>${zus}
    <div class="f">${jung?'':`<label>Rolle<select id="m_rolle">${['kdt','gw','mann'].map(r=>`<option value="${r}"${u.role===r?' selected':''}>${ROLLEN[r]}</option>`).join('')}</select></label>`}
    <label>Passwort<span class="pwfeld${u.gesperrt?' gesperrt':''}"><code class="pw">${u.gesperrt?'gesperrt':esc(pw)}</code><span class="pwx">${u.gesperrt?'gesperrt':'••••••'}</span></span></label></div>
@@ -718,6 +762,7 @@ function teilKey(n){const K=SESS.keys;
   /* Kommandanten laden den Teil der Kinderfeuerwehr nur verschlüsselt mit, damit er beim Schlüsselwechsel neu verschlüsselt werden kann */
   if(n==='kf'&&!K.kf&&SESS.role==='kdt'&&S&&S.sec)return S.sec.keys.kf||'';
   if(ALLKEYS.includes(n))return K[n]||'';if(n==='vm'||n==='gl')return K.mann||'';
+  if(n.startsWith('pwm_'))return SESS.ghz?K.mann||'':'';if(n.startsWith('pwj_'))return SESS.ghz?K.jfm||'':'';
   if(n.startsWith('p_')){const mid=n.slice(2);if(mid===SESS.mid)return SESS.p||'';if(!S)return '';
     return (SESS.role==='kdt'&&S.sec?(S.sec.pkeys||{})[mid]:'')||(K.jf&&S.jugend&&S.jugend.sec?(S.jugend.sec.pkeys||{})[mid]:'')||''}return ''}
 
@@ -766,6 +811,7 @@ async function syncZugang(){const st=getStore();if(!SESS||!SESS.ghz)return;const
   let r=null;try{r=await gh(SESS.ghz,`/repos/${c.owner}/${c.app}/contents/zugang.json?ref=${c.branch}`)}catch(e){if(e.status!==404)throw e}
   if(r&&r.sha!==st.usersSha){const rem=JSON.parse(ghTxt(r.content)).users||[];
     if(st.usersPending)st.users=m3(st.usersBasis||[],st.users,rem);else st.users=rem;st.usersBasis=rem;st.usersSha=r.sha;putStore(st,true)}
+  await pwAntraege(st);
   if(!st.usersPending)return;
   const txt=J({v:1,users:st.users});const neu=await ghCommit(SESS.ghz,c.app,{'zugang.json':txt},'Zugänge geändert');
   if(neu===null)return syncZugang();
@@ -773,7 +819,7 @@ async function syncZugang(){const st=getStore();if(!SESS||!SESS.ghz)return;const
 /* Hat ein Kommandant den eigenen Zugang geändert (neue Bereiche, Sperre)? Dann einmal neu anmelden */
 function zugangPruefen(){if(!SESS||!SESS.uid||!SESS.wiv||BASE)return;const u=getStore().users.find(x=>x.id===SESS.uid);if(!u)return;
   if(u.gesperrt||!u.ct){logout();const el=$('#loginErr');if(el)el.textContent='Dieser Zugang wurde gesperrt.';return}
-  if(u.iv!==SESS.wiv){const n=$('#entwurfNote');if(!n.hidden&&n.dataset.art==='neu')return;n.dataset.art='neu';n.hidden=false;n.querySelector('span').textContent='Dein Zugang wurde aktualisiert, zum Beispiel mit einem neuen Bereich. Bitte einmal ab- und wieder anmelden.';
+  if((u.bv||u.iv)!==SESS.wiv){const n=$('#entwurfNote');if(!n.hidden&&n.dataset.art==='neu')return;n.dataset.art='neu';n.hidden=false;n.querySelector('span').textContent='Dein Zugang wurde aktualisiert, zum Beispiel mit einem neuen Bereich. Bitte einmal ab- und wieder anmelden.';
     n.querySelector('[data-act=entwurf]').textContent='Jetzt neu anmelden';n.querySelector('[data-act=entwurf]').dataset.act='neuanmelden'}}
 /* Zugänge vor der Anmeldung holen: ohne Schlüssel aus dem öffentlichen Repository, sonst von der eigenen Seite */
 async function zugangLaden(){const st=getStore();if(st.usersPending)return;const c=ghCfg();let d=null;
@@ -1550,7 +1596,7 @@ function vPStart(){const m=ich();if(!m)return vPWahl();const y=new Date().getFul
   ${auf.length?`<div class="head"><h2>Meine Aufgaben</h2></div><ul class="list panel">${auf.map(a=>`<li><div class="row">${a.bis?dtBlock(a.bis):'<span class="dt"><b>–</b><i>ohne Termin</i></span>'}<span class="txt"><strong>${esc(a.text)}</strong><span class="muted small">${a.area==='kdt'?'Kommandanten':'Technik'}</span>${a.prio==='dringend'?'<span class="tags"><span class="tag bad">dringend</span></span>':''}</span></div></li>`).join('')}</ul>`:''}
   <div class="head"><h2>Nächste Termine</h2><button class="btn" data-act="tab" data-id="p_term">Alle anzeigen</button></div>
   ${next.length?`<ul class="list panel">${next.map(e=>pRow(e,m)).join('')}</ul>`:'<p class="panel muted">Keine kommenden Termine eingetragen.</p>'}
-  <p class="muted small" style="margin:0">Deine Angaben pflegt der Kommandant. Stimmt etwas nicht, sag ihm Bescheid.</p>`}
+  <p class="muted small" style="margin:0">Deine Angaben pflegt der Kommandant. Stimmt etwas nicht, sag ihm Bescheid.</p>${pwKnopf()}`}
 function vPTerm(){const m=ich();if(!m)return vPWahl();const y=new Date().getFullYear(),t=today(),q=pQuote(m,y),kom=meineEv(m).filter(e=>evBis(e)>=t),war=[...q.ue].reverse();
   return `<div class="head"><h2>Kommende Termine</h2>${kalKnoepfe('mann',crewPlan)}</div>
   ${kom.length?`<ul class="list panel">${kom.map(e=>pRow(e,m)).join('')}</ul>`:'<p class="panel muted">Keine kommenden Termine eingetragen.</p>'}
@@ -1750,7 +1796,7 @@ function vYStart(){const m=jich();if(!m)return vPWahl();const y=new Date().getFu
   <div class="stats"><div class="panel stat"><b>${q.p} %</b>Übungsbeteiligung ${y}</div><div class="panel stat"><b>${q.a} von ${q.ue.length}</b>Übungen besucht</div><button class="panel stat statbtn" data-act="tab" data-id="y_docs"><b>${JW().docs.length}</b>Unterlagen</button></div>
   <div class="head"><h2>Nächste Termine</h2><button class="btn" data-act="tab" data-id="y_term">Alle anzeigen</button></div>
   ${next.length?`<ul class="list panel">${next.map(e=>pRow(e,m)).join('')}</ul>`:'<p class="panel muted">Keine kommenden Termine eingetragen.</p>'}
-  <p class="muted small" style="margin:0">Kannst du zu einem Termin nicht kommen, sag bitte rechtzeitig deinem Jugendwart Bescheid.</p>`}
+  <p class="muted small" style="margin:0">Kannst du zu einem Termin nicht kommen, sag bitte rechtzeitig deinem Jugendwart Bescheid.</p>${pwKnopf()}`}
 function vYTerm(){const m=jich();if(!m)return vPWahl();const y=new Date().getFullYear(),t=today(),q=jQuote(m,y),kom=evs('jugend').filter(e=>evBis(e)>=t&&fuerJ(e,m)),war=[...q.ue].reverse();
   return `<div class="head"><h2>Kommende Termine</h2>${kalKnoepfe('jugend',y=>kalListe('jugend',y))}</div>
   ${kom.length?`<ul class="list panel">${kom.map(e=>pRow(e,m)).join('')}</ul>`:'<p class="panel muted">Keine kommenden Termine eingetragen.</p>'}
@@ -1885,6 +1931,8 @@ const done=msg=>{save();render();if(msg)toast(msg)};
 
 document.addEventListener('click',async ev=>{if(!ev.target.closest('#areasw')&&$('#areaMenu')&&!$('#areaMenu').hidden){$('#areaMenu').hidden=true;$('#areaBtn').setAttribute('aria-expanded','false')}const b=ev.target.closest('[data-act]');if(!b)return;const a=b.dataset.act,id=b.dataset.id;
   if(area==='ich'&&a==='gedit'){const g=S.geraete.find(x=>x.id===id);if(g)geraetView(g);return}
+  if(a==='pwdlg'){pwDlg();return}
+  if(a==='pwset'){pwSetzen();return}
   if(elAct(a,id))return;
   if(rcAct(a,id))return;
   if(roAct(a,id))return;
